@@ -12,7 +12,7 @@ from ..domain.models.skill import Skill, SkillCategory
 from ..domain.models.tool import Tool, ToolRisk
 from ..domain.models.model_config import ModelConfiguration, ModelProvider
 from ..domain.models.harness import Harness, HarnessVersion, HarnessTemplate, HarnessType, HarnessLifecycle
-from ..domain.models.graph import Graph, GraphNode, GraphEdge, GraphNodeType
+from ..domain.models.graph import Graph, GraphNode, GraphEdge, GraphNodeType, GraphEdgeType, GraphMetadata, GraphVersion
 from ..domain.models.loop import Loop, LoopType
 from ..domain.models.pipeline import Pipeline, PipelineStage, PipelineStageType
 from ..domain.models.execution import Execution, ExecutionEvent, EventType, Approval
@@ -472,6 +472,17 @@ def _seed_graphs() -> None:
     agents = {a.name: a.id for a in store.agents.all()}
     tools = {t.name: t.id for t in store.tools.all()}
 
+    def _make_version(g: Graph, changelog: str, is_default: bool = False) -> GraphVersion:
+        return GraphVersion(
+            tenant_id=TENANT_ID, id=gen_id("gver_"), graph_id=g.id,
+            version="v1" if not g.versions else f"v{len(g.versions) + 1}",
+            published=True, is_default=is_default,
+            nodes=[n.model_copy() for n in g.nodes],
+            edges=[e.model_copy() for e in g.edges],
+            metadata=g.metadata.model_copy(),
+            changelog=changelog, created_at=_ts(5000 - len(g.versions) * 500),
+        )
+
     # Development Graph
     g1 = Graph(
         tenant_id=TENANT_ID,
@@ -479,19 +490,29 @@ def _seed_graphs() -> None:
         name="development-graph",
         display_name="Development Graph",
         description="Standard development workflow: requirement -> architecture -> coding -> review -> test",
-        version="v1",
+        version="v2",
         published=True,
         is_default=True,
+        metadata=GraphMetadata(
+            inputs=["requirement", "application_context"],
+            outputs=["code", "tests", "evidence"],
+            environment="development",
+            failure_path_enabled=True,
+            approval_path_enabled=False,
+            execution_context={"max_parallel": 3},
+            dependencies=["requirement-analyst", "solution-architect", "senior-coding-agent"],
+            conditions=["code_ready", "review_passed"],
+        ),
         created_at=_ts(5000),
     )
     g1.nodes = [
-        GraphNode(id="n1", node_type=GraphNodeType.AGENT, label="Requirement Analysis", ref_id=agents.get("requirement-analyst"), position_x=100, position_y=50),
-        GraphNode(id="n2", node_type=GraphNodeType.AGENT, label="Architecture Design", ref_id=agents.get("solution-architect"), position_x=100, position_y=200),
-        GraphNode(id="n3", node_type=GraphNodeType.AGENT, label="Code Implementation", ref_id=agents.get("senior-coding-agent"), position_x=100, position_y=350),
-        GraphNode(id="n4", node_type=GraphNodeType.AGENT, label="Code Review", ref_id=agents.get("code-reviewer"), position_x=350, position_y=350),
-        GraphNode(id="n5", node_type=GraphNodeType.AGENT, label="Test Generation", ref_id=agents.get("test-generator"), position_x=100, position_y=500),
-        GraphNode(id="n6", node_type=GraphNodeType.VERIFICATION, label="Verify Tests Pass", position_x=350, position_y=500),
-        GraphNode(id="n7", node_type=GraphNodeType.EVIDENCE, label="Collect Evidence", position_x=225, position_y=650),
+        GraphNode(id="n1", node_type=GraphNodeType.AGENT, label="Requirement Analysis", ref_id=agents.get("requirement-analyst"), position_x=100, position_y=50, is_entry=True, inputs=["requirement"], outputs=["spec"]),
+        GraphNode(id="n2", node_type=GraphNodeType.AGENT, label="Architecture Design", ref_id=agents.get("solution-architect"), position_x=100, position_y=200, inputs=["spec"], outputs=["architecture"]),
+        GraphNode(id="n3", node_type=GraphNodeType.AGENT, label="Code Implementation", ref_id=agents.get("senior-coding-agent"), position_x=100, position_y=350, inputs=["architecture"], outputs=["code"]),
+        GraphNode(id="n4", node_type=GraphNodeType.AGENT, label="Code Review", ref_id=agents.get("code-reviewer"), position_x=350, position_y=350, inputs=["code"], outputs=["review_result"]),
+        GraphNode(id="n5", node_type=GraphNodeType.AGENT, label="Test Generation", ref_id=agents.get("test-generator"), position_x=100, position_y=500, inputs=["code"], outputs=["tests"]),
+        GraphNode(id="n6", node_type=GraphNodeType.VERIFICATION, label="Verify Tests Pass", position_x=350, position_y=500, is_terminal=False),
+        GraphNode(id="n7", node_type=GraphNodeType.EVIDENCE, label="Collect Evidence", position_x=225, position_y=650, is_terminal=True, inputs=["review_result", "tests"], outputs=["evidence"]),
     ]
     g1.edges = [
         GraphEdge(source_node_id="n1", target_node_id="n2", label="requirement_analyzed"),
@@ -502,6 +523,10 @@ def _seed_graphs() -> None:
         GraphEdge(source_node_id="n5", target_node_id="n6", label="tests_generated"),
         GraphEdge(source_node_id="n6", target_node_id="n7", label="verified"),
     ]
+    g1.entry_node_id = "n1"
+    g1.terminal_node_ids = ["n7"]
+    g1.versions = [_make_version(g1, "Initial version", True), _make_version(g1, "Added entry/terminal markers and metadata")]
+    g1.versions[1].version = "v2"
     store.graphs.add(g1)
 
     # Security Graph
@@ -514,14 +539,24 @@ def _seed_graphs() -> None:
         version="v1",
         published=True,
         is_default=True,
+        metadata=GraphMetadata(
+            inputs=["source_code", "dependencies"],
+            outputs=["security_report", "evidence"],
+            environment="development",
+            failure_path_enabled=True,
+            approval_path_enabled=False,
+            execution_context={"max_parallel": 2},
+            dependencies=["security-analyst"],
+            conditions=["scan_complete", "policy_checked"],
+        ),
         created_at=_ts(5000),
     )
     g2.nodes = [
-        GraphNode(id="s1", node_type=GraphNodeType.AGENT, label="SAST Scan", ref_id=agents.get("security-analyst"), position_x=100, position_y=50),
-        GraphNode(id="s2", node_type=GraphNodeType.TOOL, label="SAST Scanner", ref_id=tools.get("sast-scanner"), position_x=100, position_y=200),
-        GraphNode(id="s3", node_type=GraphNodeType.TOOL, label="Dependency Scanner", ref_id=tools.get("dependency-scanner"), position_x=350, position_y=200),
-        GraphNode(id="s4", node_type=GraphNodeType.POLICY, label="Security Policy Check", position_x=225, position_y=350),
-        GraphNode(id="s5", node_type=GraphNodeType.EVIDENCE, label="Security Evidence", position_x=225, position_y=500),
+        GraphNode(id="s1", node_type=GraphNodeType.AGENT, label="SAST Scan", ref_id=agents.get("security-analyst"), position_x=100, position_y=50, is_entry=True, inputs=["source_code"], outputs=["scan_request"]),
+        GraphNode(id="s2", node_type=GraphNodeType.TOOL, label="SAST Scanner", ref_id=tools.get("sast-scanner"), position_x=100, position_y=200, inputs=["scan_request"], outputs=["sast_findings"]),
+        GraphNode(id="s3", node_type=GraphNodeType.TOOL, label="Dependency Scanner", ref_id=tools.get("dependency-scanner"), position_x=350, position_y=200, inputs=["dependencies"], outputs=["dep_findings"]),
+        GraphNode(id="s4", node_type=GraphNodeType.POLICY, label="Security Policy Check", position_x=225, position_y=350, inputs=["sast_findings", "dep_findings"], outputs=["policy_result"]),
+        GraphNode(id="s5", node_type=GraphNodeType.EVIDENCE, label="Security Evidence", position_x=225, position_y=500, is_terminal=True, inputs=["policy_result"], outputs=["evidence"]),
     ]
     g2.edges = [
         GraphEdge(source_node_id="s1", target_node_id="s2", label="start_scan"),
@@ -530,6 +565,9 @@ def _seed_graphs() -> None:
         GraphEdge(source_node_id="s3", target_node_id="s4", label="scan_complete"),
         GraphEdge(source_node_id="s4", target_node_id="s5", label="policy_checked"),
     ]
+    g2.entry_node_id = "s1"
+    g2.terminal_node_ids = ["s5"]
+    g2.versions = [_make_version(g2, "Initial version", True)]
     store.graphs.add(g2)
 
     # Deployment Graph
@@ -539,18 +577,29 @@ def _seed_graphs() -> None:
         name="deployment-graph",
         display_name="Deployment Graph",
         description="Deployment with verification and rollback capability",
-        version="v1",
+        version="v2",
         published=True,
         is_default=True,
+        metadata=GraphMetadata(
+            inputs=["artifact", "environment_config"],
+            outputs=["deployment_result", "evidence"],
+            environment="production",
+            failure_path_enabled=True,
+            approval_path_enabled=True,
+            execution_context={"max_parallel": 1},
+            dependencies=["deployment-engineer", "verification-agent"],
+            conditions=["healthy", "failure"],
+        ),
         created_at=_ts(5000),
     )
     g3.nodes = [
-        GraphNode(id="d1", node_type=GraphNodeType.APPROVAL, label="Deployment Approval", position_x=100, position_y=50),
-        GraphNode(id="d2", node_type=GraphNodeType.AGENT, label="Deploy", ref_id=agents.get("deployment-engineer"), position_x=100, position_y=200),
-        GraphNode(id="d3", node_type=GraphNodeType.TOOL, label="Kubernetes", ref_id=tools.get("kubernetes"), position_x=100, position_y=350),
-        GraphNode(id="d4", node_type=GraphNodeType.AGENT, label="Verify", ref_id=agents.get("verification-agent"), position_x=350, position_y=350),
-        GraphNode(id="d5", node_type=GraphNodeType.CONDITION, label="Health Check", position_x=225, position_y=500),
-        GraphNode(id="d6", node_type=GraphNodeType.EVIDENCE, label="Deployment Evidence", position_x=225, position_y=650),
+        GraphNode(id="d1", node_type=GraphNodeType.APPROVAL, label="Deployment Approval", position_x=100, position_y=50, is_entry=True, inputs=["artifact"], outputs=["approval"]),
+        GraphNode(id="d2", node_type=GraphNodeType.AGENT, label="Deploy", ref_id=agents.get("deployment-engineer"), position_x=100, position_y=200, inputs=["approval"], outputs=["deployment"]),
+        GraphNode(id="d3", node_type=GraphNodeType.TOOL, label="Kubernetes", ref_id=tools.get("kubernetes"), position_x=100, position_y=350, inputs=["deployment"], outputs=["deploy_result"]),
+        GraphNode(id="d4", node_type=GraphNodeType.AGENT, label="Verify", ref_id=agents.get("verification-agent"), position_x=350, position_y=350, inputs=["deploy_result"], outputs=["verification"]),
+        GraphNode(id="d5", node_type=GraphNodeType.CONDITION, label="Health Check", position_x=225, position_y=500, inputs=["verification"], outputs=["health_result"]),
+        GraphNode(id="d6", node_type=GraphNodeType.EVIDENCE, label="Deployment Evidence", position_x=225, position_y=650, is_terminal=True, inputs=["health_result"], outputs=["evidence"]),
+        GraphNode(id="d7", node_type=GraphNodeType.FAILURE_HANDLER, label="Rollback Handler", position_x=450, position_y=500, inputs=["health_result"], outputs=["rollback"]),
     ]
     g3.edges = [
         GraphEdge(source_node_id="d1", target_node_id="d2", label="approved"),
@@ -558,8 +607,13 @@ def _seed_graphs() -> None:
         GraphEdge(source_node_id="d3", target_node_id="d4", label="deployed"),
         GraphEdge(source_node_id="d4", target_node_id="d5", label="verified"),
         GraphEdge(source_node_id="d5", target_node_id="d6", label="healthy", condition="success"),
-        GraphEdge(source_node_id="d5", target_node_id="d2", label="rollback", condition="failure"),
+        GraphEdge(source_node_id="d5", target_node_id="d7", label="rollback", condition="failure", is_failure_path=True, edge_type=GraphEdgeType.FAILURE),
+        GraphEdge(source_node_id="d7", target_node_id="d2", label="retry_deploy", is_failure_path=True, edge_type=GraphEdgeType.FAILURE),
     ]
+    g3.entry_node_id = "d1"
+    g3.terminal_node_ids = ["d6"]
+    g3.versions = [_make_version(g3, "Initial version", True), _make_version(g3, "Added failure handler and rollback path")]
+    g3.versions[1].version = "v2"
     store.graphs.add(g3)
 
 

@@ -1,7 +1,8 @@
 import { api } from './client'
 import type {
   Application, Agent, Skill, Tool, ModelConfiguration, Harness, HarnessTemplate, HarnessVersion, HarnessVersionComparison,
-  Graph, GraphValidation, GraphNode, GraphEdge, Loop, Pipeline, Execution, ExecutionEvent, Evidence, EngineeringState,
+  Graph, GraphValidation, GraphNode, GraphEdge, GraphVersion, GraphSerialization, GraphExecutionResult, Loop,
+  Pipeline, Execution, ExecutionEvent, Evidence, EngineeringState,
   Policy, Requirement, Environment, Artifact, Deployment, DashboardData, Tenant, User, Approval,
   AgentTestResult, AgentVersionComparison, AgentFactoryFullBody, AgentVersion,
 } from '../types'
@@ -75,6 +76,7 @@ export const apiService = {
   graph: (id: string) => api.get<Graph>(`/graphs/${id}`),
   createGraph: (body: unknown) => api.post<Graph>('/graphs', body),
   updateGraphFull: (id: string, body: unknown) => api.put<Graph>(`/graphs/${id}`, body),
+  deleteGraph: (id: string) => api.delete<Record<string, unknown>>(`/graphs/${id}`),
   addNode: (id: string, body: unknown) => api.post<Graph>(`/graphs/${id}/nodes`, body),
   updateNode: (id: string, nodeId: string, body: unknown) => api.put<GraphNode>(`/graphs/${id}/nodes/${nodeId}`, body) as unknown as Promise<GraphNode>,
   deleteNode: (id: string, nodeId: string) => api.delete<Record<string, unknown>>(`/graphs/${id}/nodes/${nodeId}`),
@@ -82,6 +84,12 @@ export const apiService = {
   updateEdge: (id: string, edgeId: string, body: unknown) => api.put<GraphEdge>(`/graphs/${id}/edges/${edgeId}`, body) as unknown as Promise<GraphEdge>,
   deleteEdge: (id: string, edgeId: string) => api.delete<Record<string, unknown>>(`/graphs/${id}/edges/${edgeId}`),
   validateGraph: (id: string) => api.get<GraphValidation>(`/graphs/${id}/validate`),
+  graphVersions: (id: string) => api.get<GraphVersion[]>(`/graphs/${id}/versions`),
+  createGraphVersion: (id: string, body: { changelog: string }) => api.post<GraphVersion>(`/graphs/${id}/versions`, body),
+  publishGraph: (id: string, version: string) => api.post<Graph>(`/graphs/${id}/publish/${version}`),
+  rollbackGraph: (id: string, version: string) => api.post<Graph>(`/graphs/${id}/rollback/${version}`),
+  serializeGraph: (id: string) => api.get<GraphSerialization>(`/graphs/${id}/serialize`),
+  executeGraph: (id: string, body: unknown) => api.post<GraphExecutionResult>(`/graphs/${id}/execute`, body),
 
   loops: () => api.get<Loop[]>('/loops'),
   loop: (id: string) => api.get<Loop>(`/loops/${id}`),

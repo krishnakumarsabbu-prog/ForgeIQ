@@ -239,6 +239,10 @@ export interface GraphNode {
   position_x: number
   position_y: number
   description: string
+  is_entry: boolean
+  is_terminal: boolean
+  inputs: string[]
+  outputs: string[]
 }
 
 export interface GraphEdge {
@@ -248,6 +252,32 @@ export interface GraphEdge {
   label: string
   condition?: string
   edge_type: string
+  is_failure_path: boolean
+}
+
+export interface GraphMetadata {
+  inputs: string[]
+  outputs: string[]
+  environment: string
+  failure_path_enabled: boolean
+  approval_path_enabled: boolean
+  execution_context: Record<string, unknown>
+  dependencies: string[]
+  conditions: string[]
+}
+
+export interface GraphVersion {
+  id: string
+  graph_id: string
+  version: string
+  published: boolean
+  is_default: boolean
+  deprecated: boolean
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  metadata: GraphMetadata
+  changelog: string
+  created_at: string
 }
 
 export interface Graph {
@@ -261,6 +291,10 @@ export interface Graph {
   nodes: GraphNode[]
   edges: GraphEdge[]
   harness_id?: string
+  metadata: GraphMetadata
+  versions: GraphVersion[]
+  entry_node_id?: string
+  terminal_node_ids: string[]
   created_at: string
 }
 
@@ -279,6 +313,42 @@ export interface GraphValidation {
   diagnostics: GraphDiagnostic[]
   node_count: number
   edge_count: number
+  rules_checked?: string[]
+}
+
+export interface GraphExecutionState {
+  graph_id: string
+  execution_id: string
+  node_states: Record<string, string>
+  active_node_id?: string
+  completed_node_ids: string[]
+  failed_node_ids: string[]
+  skipped_node_ids: string[]
+  blocked_node_ids: string[]
+  status: string
+  started_at?: string
+  completed_at?: string
+  iteration: number
+}
+
+export interface GraphExecutionResult {
+  execution_id: string
+  status: string
+  nodes_executed: number
+  results: Record<string, unknown>
+  execution_state: GraphExecutionState
+}
+
+export interface GraphSerialization {
+  graph_id: string
+  name: string
+  display_name: string
+  version: string
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  metadata: GraphMetadata
+  entry_node_id?: string
+  terminal_node_ids: string[]
 }
 
 export interface Loop {

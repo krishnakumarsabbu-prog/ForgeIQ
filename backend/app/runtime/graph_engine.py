@@ -4,14 +4,18 @@ import asyncio
 from typing import Optional
 
 from ..storage.in_memory import store
-from ..domain.models.graph import Graph, GraphNode, GraphNodeType
-from ..domain.models.base import gen_id
+from ..domain.models.graph import (
+    Graph, GraphNode, GraphNodeType, GraphEdgeType,
+    GraphNodeStatus, GraphExecutionState, new_graph_execution_state,
+)
+from ..domain.models.base import gen_id, utc_now
 from ..domain.models.execution import ExecutionEvent, EventType
 from ..domain.models.evidence import EvidenceType
 from .agent_runtime import AgentRuntime
 from .tool_runtime import ToolRuntime
 from .context_engine import ContextEngine
 from .evidence_engine import EvidenceEngine
+from .graph_validator import GraphValidator
 
 
 class GraphEngine:
@@ -21,12 +25,19 @@ class GraphEngine:
         self.tool_runtime = ToolRuntime(tenant_id)
         self.context_engine = ContextEngine(tenant_id)
         self.evidence_engine = EvidenceEngine(tenant_id)
+        self.validator = GraphValidator()
 
     def get_graph(self, graph_id: str) -> Optional[Graph]:
         g = store.graphs.get(graph_id)
         if g and g.tenant_id == self.tenant_id:
             return g
         return None
+
+    def validate(self, graph_id: str) -> dict:
+        graph = self.get_graph(graph_id)
+        if graph is None:
+            return {"valid": False, "errors": [{"severity": "error", "code": "NOT_FOUND", "message": "Graph not found"}], "warnings": [], "diagnostics": [], "node_count": 0, "edge_count": 0, "rules_checked": []}
+        return self.validator.validate(graph)
 
     def _topological_sort(self, graph: Graph) -> list[list[GraphNode]]:
         node_map = {n.id: n for n in graph.nodes}
@@ -53,10 +64,21 @@ class GraphEngine:
                         in_degree[child] -= 1
         return layers
 
-    async def execute(self, graph_id: str, execution_id: str, harness_id: str, environment: str = "development", application_id: Optional[str] = None, requirement_id: Optional[str] = None) -> dict:
+    async def execute(
+        self, graph_id: str, execution_id: str, harness_id: str,
+        environment: str = "development",
+        application_id: Optional[str] = None,
+        requirement_id: Optional[str] = None,
+    ) -> dict:
         graph = self.get_graph(graph_id)
         if graph is None:
             return {"status": "failed", "error": "Graph not found"}
+
+        state = new_graph_execution_state(graph_id, execution_id, graph)
+        state.status = "running"
+        state.started_at = utc_now().isoformat()
+
+        store_event(execution_id, EventType.GRAPH_NODE_STARTED, f"Graph '{graph.display_name}' execution started")
 
         layers = self._topological_sort(graph)
         node_results: dict[str, dict] = {}
@@ -64,30 +86,47 @@ class GraphEngine:
         for layer in layers:
             tasks = []
             for node in layer:
+                state.node_states[node.id] = GraphNodeStatus.RUNNING.value
+                state.active_node_id = node.id
                 tasks.append(self._execute_node(node, execution_id, harness_id, environment, application_id, requirement_id))
             results = await asyncio.gather(*tasks, return_exceptions=True)
             for node, result in zip(layer, results):
                 if isinstance(result, Exception):
                     node_results[node.id] = {"status": "failed", "error": str(result)}
+                    state.node_states[node.id] = GraphNodeStatus.FAILED.value
+                    state.failed_node_ids.append(node.id)
                 else:
                     node_results[node.id] = result
+                    if result.get("status") == "awaiting_approval":
+                        state.node_states[node.id] = GraphNodeStatus.WAITING.value
+                        state.blocked_node_ids.append(node.id)
+                    else:
+                        state.node_states[node.id] = GraphNodeStatus.SUCCEEDED.value
+                        state.completed_node_ids.append(node.id)
 
-        all_succeeded = all(r.get("status") in ("completed", "awaiting_approval") for r in node_results.values()) if node_results else True
+        state.active_node_id = None
+        all_succeeded = all(
+            r.get("status") in ("completed", "awaiting_approval")
+            for r in node_results.values()
+        ) if node_results else True
+        state.status = "completed" if all_succeeded else "failed"
+        state.completed_at = utc_now().isoformat()
+
+        store_event(execution_id, EventType.GRAPH_NODE_COMPLETED, f"Graph execution {'completed' if all_succeeded else 'failed'}")
+
         return {
-            "status": "completed" if all_succeeded else "failed",
+            "status": state.status,
             "nodes_executed": len(node_results),
             "results": node_results,
+            "execution_state": state.model_dump(),
         }
 
-    async def _execute_node(self, node: GraphNode, execution_id: str, harness_id: str, environment: str, application_id: Optional[str], requirement_id: Optional[str]) -> dict:
-        start_evt = ExecutionEvent(
-            id=gen_id("evt_"),
-            execution_id=execution_id,
-            event_type=EventType.GRAPH_NODE_STARTED,
-            node_id=node.id,
-            message=f"Node '{node.label}' ({node.node_type.value}) started",
-        )
-        store.events.append(start_evt)
+    async def _execute_node(
+        self, node: GraphNode, execution_id: str, harness_id: str,
+        environment: str, application_id: Optional[str], requirement_id: Optional[str],
+    ) -> dict:
+        store_event(execution_id, EventType.GRAPH_NODE_STARTED,
+                    f"Node '{node.label}' ({node.node_type.value}) started", node_id=node.id)
 
         await asyncio.sleep(0.03)
 
@@ -95,100 +134,75 @@ class GraphEngine:
 
         if node.node_type == GraphNodeType.AGENT and node.ref_id:
             ctx = self.context_engine.prepare_context(
-                agent_id=node.ref_id,
-                application_id=application_id,
-                requirement_id=requirement_id,
-                harness_id=harness_id,
-                execution_id=execution_id,
-                node_id=node.id,
+                agent_id=node.ref_id, application_id=application_id,
+                requirement_id=requirement_id, harness_id=harness_id,
+                execution_id=execution_id, node_id=node.id,
             )
             agent_result = await self.agent_runtime.execute(
                 agent_id=node.ref_id,
                 inputs={"context": ctx, "config": node.config},
-                execution_id=execution_id,
-                node_id=node.id,
+                execution_id=execution_id, node_id=node.id,
             )
             result["agent_result"] = agent_result
             self.evidence_engine.create_evidence(
-                execution_id=execution_id,
-                evidence_type=EvidenceType.AGENT,
-                agent_id=node.ref_id,
-                harness_id=harness_id,
-                inputs={"context": "prepared"},
-                outputs=agent_result,
-                summary=f"Agent '{node.label}' executed",
-                node_id=node.id,
+                execution_id=execution_id, evidence_type=EvidenceType.AGENT,
+                agent_id=node.ref_id, harness_id=harness_id,
+                inputs={"context": "prepared"}, outputs=agent_result,
+                summary=f"Agent '{node.label}' executed", node_id=node.id,
             )
 
         elif node.node_type == GraphNodeType.TOOL and node.ref_id:
             operation = node.config.get("operation", "execute")
             tool_result = await self.tool_runtime.execute(
-                tool_id=node.ref_id,
-                operation=operation,
+                tool_id=node.ref_id, operation=operation,
                 params=node.config.get("params", {}),
-                execution_id=execution_id,
-                environment=environment,
-                node_id=node.id,
+                execution_id=execution_id, environment=environment, node_id=node.id,
             )
             result["tool_result"] = tool_result
             self.evidence_engine.create_evidence(
-                execution_id=execution_id,
-                evidence_type=EvidenceType.TOOL,
-                tool_id=node.ref_id,
-                harness_id=harness_id,
-                inputs={"operation": operation},
-                outputs=tool_result,
-                summary=f"Tool '{node.label}' executed {operation}",
-                node_id=node.id,
+                execution_id=execution_id, evidence_type=EvidenceType.TOOL,
+                tool_id=node.ref_id, harness_id=harness_id,
+                inputs={"operation": operation}, outputs=tool_result,
+                summary=f"Tool '{node.label}' executed {operation}", node_id=node.id,
             )
 
         elif node.node_type == GraphNodeType.EVIDENCE:
             self.evidence_engine.create_evidence(
-                execution_id=execution_id,
-                evidence_type=EvidenceType.GRAPH,
-                harness_id=harness_id,
-                outputs={"node": node.label},
-                summary=f"Evidence collected at node '{node.label}'",
-                node_id=node.id,
+                execution_id=execution_id, evidence_type=EvidenceType.GRAPH,
+                harness_id=harness_id, outputs={"node": node.label},
+                summary=f"Evidence collected at node '{node.label}'", node_id=node.id,
             )
 
         elif node.node_type == GraphNodeType.APPROVAL:
-            approval_evt = ExecutionEvent(
-                id=gen_id("evt_"),
-                execution_id=execution_id,
-                event_type=EventType.APPROVAL_REQUESTED,
-                node_id=node.id,
-                message=f"Approval requested at node '{node.label}'",
-            )
-            store.events.append(approval_evt)
+            store_event(execution_id, EventType.APPROVAL_REQUESTED,
+                        f"Approval requested at node '{node.label}'", node_id=node.id)
             result["status"] = "awaiting_approval"
 
         elif node.node_type == GraphNodeType.VERIFICATION:
-            eval_evt = ExecutionEvent(
-                id=gen_id("evt_"),
-                execution_id=execution_id,
-                event_type=EventType.EVALUATION_STARTED,
-                node_id=node.id,
-                message=f"Verification at node '{node.label}'",
-            )
-            store.events.append(eval_evt)
+            store_event(execution_id, EventType.EVALUATION_STARTED,
+                        f"Verification at node '{node.label}'", node_id=node.id)
             await asyncio.sleep(0.02)
-            eval_done_evt = ExecutionEvent(
-                id=gen_id("evt_"),
-                execution_id=execution_id,
-                event_type=EventType.EVALUATION_COMPLETED,
-                node_id=node.id,
-                message=f"Verification passed at node '{node.label}'",
-            )
-            store.events.append(eval_done_evt)
+            store_event(execution_id, EventType.EVALUATION_COMPLETED,
+                        f"Verification passed at node '{node.label}'", node_id=node.id)
 
-        complete_evt = ExecutionEvent(
-            id=gen_id("evt_"),
-            execution_id=execution_id,
-            event_type=EventType.GRAPH_NODE_COMPLETED,
-            node_id=node.id,
-            message=f"Node '{node.label}' completed",
-        )
-        store.events.append(complete_evt)
+        elif node.node_type == GraphNodeType.FAILURE_HANDLER:
+            store_event(execution_id, EventType.GRAPH_NODE_STARTED,
+                        f"Failure handler '{node.label}' activated", node_id=node.id)
+
+        elif node.node_type == GraphNodeType.HUMAN_TASK:
+            store_event(execution_id, EventType.APPROVAL_REQUESTED,
+                        f"Human task '{node.label}' waiting for input", node_id=node.id)
+            result["status"] = "awaiting_approval"
+
+        store_event(execution_id, EventType.GRAPH_NODE_COMPLETED,
+                    f"Node '{node.label}' completed", node_id=node.id)
 
         return result
+
+
+def store_event(execution_id: str, event_type: EventType, message: str, node_id: Optional[str] = None) -> None:
+    evt = ExecutionEvent(
+        id=gen_id("evt_"), execution_id=execution_id,
+        event_type=event_type, node_id=node_id, message=message,
+    )
+    store.events.append(evt)

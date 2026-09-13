@@ -162,9 +162,59 @@ export function useUpdateGraphFull() {
   })
 }
 
+export function useDeleteGraph() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.deleteGraph,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['graphs'] }) },
+  })
+}
+
 export function useValidateGraph() {
   return useMutation({
     mutationFn: (id: string) => apiService.validateGraph(id),
+  })
+}
+
+export function useGraphVersions(id: string) {
+  return useQuery({ queryKey: ['graph-versions', id], queryFn: () => apiService.graphVersions(id), enabled: !!id })
+}
+
+export function useCreateGraphVersion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { changelog: string } }) => apiService.createGraphVersion(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['graphs'] }) },
+  })
+}
+
+export function usePublishGraph() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: string }) => apiService.publishGraph(id, version),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['graphs'] }) },
+  })
+}
+
+export function useRollbackGraph() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: string }) => apiService.rollbackGraph(id, version),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['graphs'] }) },
+  })
+}
+
+export function useSerializeGraph() {
+  return useMutation({
+    mutationFn: (id: string) => apiService.serializeGraph(id),
+  })
+}
+
+export function useExecuteGraph() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.executeGraph(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['graphs'] }) },
   })
 }
 
