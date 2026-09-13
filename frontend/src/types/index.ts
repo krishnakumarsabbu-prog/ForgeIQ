@@ -1065,3 +1065,115 @@ export interface EngineeringPlan {
   execution_id?: string
   created_at: string
 }
+
+export interface RepositoryFile {
+  path: string
+  language: string
+  content: string
+  lines: number
+  is_critical: boolean
+  category: string
+}
+
+export interface FileChange {
+  file_path: string
+  language: string
+  change_type: string
+  before: string
+  after: string
+  reason: string
+  risk: string
+  start_line: number
+  end_line: number
+}
+
+export interface RiskFactor {
+  factor: string
+  weight: number
+  present: boolean
+  detail: string
+}
+
+export interface WorkflowStep {
+  id: string
+  phase: string
+  label: string
+  description: string
+  status: string
+  started_at?: string
+  completed_at?: string
+  result: Record<string, unknown>
+  events: Record<string, unknown>[]
+}
+
+export interface PeerTestResult {
+  name: string
+  status: string
+  passed: number
+  failed: number
+  skipped: number
+  coverage_pct: number
+  duration_seconds: number
+  details: Record<string, unknown>[]
+}
+
+export interface PeerSecurityResult {
+  scan_type: string
+  status: string
+  findings: number
+  critical: number
+  high: number
+  medium: number
+  low: number
+  details: Record<string, unknown>[]
+}
+
+export interface PeerBuildResult {
+  status: string
+  build_time_seconds: number
+  artifact_path: string
+  errors: string[]
+  warnings: string[]
+}
+
+export interface PeerEvidenceRecord {
+  id: string
+  phase: string
+  action: string
+  agent: string
+  model: string
+  timestamp: string
+  summary: string
+  data: Record<string, unknown>
+}
+
+export interface PeerEngineeringSession {
+  id: string
+  application_id: string
+  application_name: string
+  request_text: string
+  status: string
+  current_phase: string
+  repository_files: RepositoryFile[]
+  selected_file_path: string
+  engineering_state_summary: Record<string, unknown>
+  relevant_files: string[]
+  impact_analysis: Record<string, unknown>
+  risk_level: string
+  risk_factors: RiskFactor[]
+  risk_score: number
+  plan: Record<string, unknown>[]
+  plan_summary: string
+  requires_approval: boolean
+  file_changes: FileChange[]
+  workflow_steps: WorkflowStep[]
+  test_results: PeerTestResult
+  security_results: PeerSecurityResult
+  build_results: PeerBuildResult
+  evidence: PeerEvidenceRecord[]
+  decided_by: string
+  decided_at?: string
+  decision_reason: string
+  created_at: string
+  updated_at: string
+}

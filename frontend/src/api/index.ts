@@ -9,6 +9,7 @@ import type {
   AgentTestResult, AgentVersionComparison, AgentFactoryFullBody, AgentVersion,
   EngineeringPlan, PlanStage,
   BrownfieldImport, BrownfieldSemanticModel, BrownfieldRecommendations,
+  PeerEngineeringSession,
 } from '../types'
 
 export const apiService = {
@@ -195,4 +196,13 @@ export const apiService = {
   brownfieldImportSemanticModel: (id: string) => api.get<BrownfieldSemanticModel>(`/brownfield/imports/${id}/semantic-model`),
   brownfieldImportDocumentation: (id: string) => api.get<Record<string, unknown>>(`/brownfield/imports/${id}/documentation`),
   brownfieldImportRecommendations: (id: string) => api.get<BrownfieldRecommendations>(`/brownfield/imports/${id}/recommendations`),
+
+  peerSessions: (applicationId?: string) => api.get<PeerEngineeringSession[]>(`/peer-engineering/sessions${applicationId ? `?application_id=${applicationId}` : ''}`),
+  peerSession: (id: string) => api.get<PeerEngineeringSession>(`/peer-engineering/sessions/${id}`),
+  createPeerSession: (body: { application_id: string; request_text: string }) => api.post<PeerEngineeringSession>('/peer-engineering/sessions', body),
+  approvePeerSession: (id: string, body: { decided_by: string; reason: string }) => api.post<PeerEngineeringSession>(`/peer-engineering/sessions/${id}/approve`, body),
+  rejectPeerSession: (id: string, body: { decided_by: string; reason: string }) => api.post<PeerEngineeringSession>(`/peer-engineering/sessions/${id}/reject`, body),
+  requestPeerRevision: (id: string, body: { feedback: string }) => api.post<PeerEngineeringSession>(`/peer-engineering/sessions/${id}/revision`, body),
+  updatePeerFile: (id: string, body: { file_path: string; content: string }) => api.put<PeerEngineeringSession>(`/peer-engineering/sessions/${id}/file`, body),
+  selectPeerFile: (id: string, body: { file_path: string }) => api.post<PeerEngineeringSession>(`/peer-engineering/sessions/${id}/select-file`, body),
 }

@@ -6,7 +6,7 @@ import {
   ScrollText, Shield, FileLock2, Building2, Users, Settings,
   Package, Rocket, Server, ChevronDown, ChevronRight, ChevronLeft,
   Boxes, Gauge, Lock, FileCheck, DollarSign, Search, Plus, Bell,
-  HelpCircle, Check, UserCog, Repeat,
+  HelpCircle, Check, UserCog, Repeat, Code2,
 } from 'lucide-react'
 import { CommandPalette } from '../ui/CommandPalette'
 import { useDashboard, useTenants, useExecutions } from '../../hooks/useQueries'
@@ -31,6 +31,7 @@ const navSections: NavSection[] = [
       { to: '/requirements', label: 'Requirements', icon: ListTodo },
       { to: '/applications', label: 'Applications', icon: FolderGit2 },
       { to: '/start-engineering', label: 'Start Engineering', icon: Rocket },
+      { to: '/peer-engineering', label: 'Peer Engineering', icon: Code2 },
       { to: '/brownfield-import', label: 'Import Application', icon: FolderGit2 },
       { to: '/pipelines', label: 'Engineering Pipelines', icon: Workflow },
       { to: '/pipeline-templates', label: 'Pipeline Templates', icon: FileLock2 },

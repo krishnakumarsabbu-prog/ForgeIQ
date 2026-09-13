@@ -44,6 +44,7 @@ import SecurityPage from './pages/SecurityPage'
 import EngineeringEconomicsPage from './pages/EngineeringEconomicsPage'
 import PermissionsPage from './pages/PermissionsPage'
 import GovernancePage from './pages/GovernancePage'
+import PeerEngineeringWorkspace from './pages/PeerEngineeringWorkspace'
 
 export default function App() {
   return (
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/applications" element={<ApplicationsPage />} />
         <Route path="/applications/:id" element={<ApplicationDetail />} />
         <Route path="/start-engineering" element={<StartEngineeringPage />} />
+      <Route path="/peer-engineering" element={<PeerEngineeringWorkspace />} />
         <Route path="/brownfield-import" element={<BrownfieldImportPage />} />
         <Route path="/requirements" element={<RequirementsPage />} />
         <Route path="/agents" element={<AgentsPage />} />

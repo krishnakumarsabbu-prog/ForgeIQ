@@ -715,3 +715,52 @@ export function useBrownfieldImportDocumentation(id: string) {
 export function useBrownfieldImportRecommendations(id: string) {
   return useQuery({ queryKey: ['brownfield-recommendations', id], queryFn: () => apiService.brownfieldImportRecommendations(id), enabled: !!id })
 }
+
+export function usePeerSessions(applicationId?: string) {
+  return useQuery({ queryKey: ['peer-sessions', applicationId], queryFn: () => apiService.peerSessions(applicationId) })
+}
+export function usePeerSession(id: string) {
+  return useQuery({ queryKey: ['peer-session', id], queryFn: () => apiService.peerSession(id), enabled: !!id, refetchInterval: 2000 })
+}
+export function useCreatePeerSession() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createPeerSession,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['peer-sessions'] }) },
+  })
+}
+export function useApprovePeerSession() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { decided_by: string; reason: string } }) => apiService.approvePeerSession(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['peer-sessions'] }) },
+  })
+}
+export function useRejectPeerSession() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { decided_by: string; reason: string } }) => apiService.rejectPeerSession(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['peer-sessions'] }) },
+  })
+}
+export function useRequestPeerRevision() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { feedback: string } }) => apiService.requestPeerRevision(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['peer-sessions'] }) },
+  })
+}
+export function useUpdatePeerFile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { file_path: string; content: string } }) => apiService.updatePeerFile(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['peer-sessions'] }) },
+  })
+}
+export function useSelectPeerFile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { file_path: string } }) => apiService.selectPeerFile(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['peer-sessions'] }) },
+  })
+}
