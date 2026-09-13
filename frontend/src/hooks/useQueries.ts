@@ -1,0 +1,186 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiService } from '../api'
+
+export function useDashboard() {
+  return useQuery({ queryKey: ['dashboard'], queryFn: apiService.dashboard, refetchInterval: 5000 })
+}
+
+export function useApplications() {
+  return useQuery({ queryKey: ['applications'], queryFn: apiService.applications })
+}
+export function useApplication(id: string) {
+  return useQuery({ queryKey: ['application', id], queryFn: () => apiService.application(id), enabled: !!id })
+}
+
+export function useRequirements() {
+  return useQuery({ queryKey: ['requirements'], queryFn: apiService.requirements })
+}
+
+export function useAgents() {
+  return useQuery({ queryKey: ['agents'], queryFn: apiService.agents })
+}
+export function useAgent(id: string) {
+  return useQuery({ queryKey: ['agent', id], queryFn: () => apiService.agent(id), enabled: !!id })
+}
+
+export function useSkills() {
+  return useQuery({ queryKey: ['skills'], queryFn: apiService.skills })
+}
+
+export function useTools() {
+  return useQuery({ queryKey: ['tools'], queryFn: apiService.tools })
+}
+
+export function useModels() {
+  return useQuery({ queryKey: ['models'], queryFn: apiService.models })
+}
+
+export function useHarnesses() {
+  return useQuery({ queryKey: ['harnesses'], queryFn: apiService.harnesses })
+}
+export function useHarness(id: string) {
+  return useQuery({ queryKey: ['harness', id], queryFn: () => apiService.harness(id), enabled: !!id })
+}
+export function useHarnessTemplates() {
+  return useQuery({ queryKey: ['harness-templates'], queryFn: apiService.harnessTemplates })
+}
+
+export function useGraphs() {
+  return useQuery({ queryKey: ['graphs'], queryFn: apiService.graphs })
+}
+export function useGraph(id: string) {
+  return useQuery({ queryKey: ['graph', id], queryFn: () => apiService.graph(id), enabled: !!id })
+}
+
+export function useLoops() {
+  return useQuery({ queryKey: ['loops'], queryFn: apiService.loops })
+}
+
+export function usePipelines() {
+  return useQuery({ queryKey: ['pipelines'], queryFn: apiService.pipelines })
+}
+export function usePipeline(id: string) {
+  return useQuery({ queryKey: ['pipeline', id], queryFn: () => apiService.pipeline(id), enabled: !!id })
+}
+
+export function useExecutions() {
+  return useQuery({ queryKey: ['executions'], queryFn: apiService.executions, refetchInterval: 3000 })
+}
+export function useExecution(id: string) {
+  return useQuery({ queryKey: ['execution', id], queryFn: () => apiService.execution(id), enabled: !!id, refetchInterval: 2000 })
+}
+export function useExecutionEvents(id: string) {
+  return useQuery({ queryKey: ['execution-events', id], queryFn: () => apiService.executionEvents(id), enabled: !!id, refetchInterval: 2000 })
+}
+
+export function useEvidence() {
+  return useQuery({ queryKey: ['evidence'], queryFn: apiService.evidence })
+}
+
+export function useEngineeringStates() {
+  return useQuery({ queryKey: ['engineering-states'], queryFn: apiService.engineeringStates })
+}
+export function useEngineeringState(id: string) {
+  return useQuery({ queryKey: ['engineering-state', id], queryFn: () => apiService.engineeringState(id), enabled: !!id })
+}
+
+export function usePolicies() {
+  return useQuery({ queryKey: ['policies'], queryFn: apiService.policies })
+}
+
+export function useEnvironments() {
+  return useQuery({ queryKey: ['environments'], queryFn: apiService.environments })
+}
+export function useArtifacts() {
+  return useQuery({ queryKey: ['artifacts'], queryFn: apiService.artifacts })
+}
+export function useDeployments() {
+  return useQuery({ queryKey: ['deployments'], queryFn: apiService.deployments })
+}
+
+export function useTenants() {
+  return useQuery({ queryKey: ['tenants'], queryFn: apiService.tenants })
+}
+export function useTenantUsers(id: string) {
+  return useQuery({ queryKey: ['tenant-users', id], queryFn: () => apiService.tenantUsers(id), enabled: !!id })
+}
+
+export function useCreateExecution() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createExecution,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['executions'] }) },
+  })
+}
+
+export function useCreateAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createAgent,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
+  })
+}
+
+export function useAgentFactory() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.agentFactory,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
+  })
+}
+
+export function useCreateHarness() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createHarness,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harnesses'] }) },
+  })
+}
+
+export function useCreatePipeline() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createPipeline,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pipelines'] }) },
+  })
+}
+
+export function useCreateRequirement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createRequirement,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['requirements'] }) },
+  })
+}
+
+export function useCreatePolicy() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createPolicy,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['policies'] }) },
+  })
+}
+
+export function useCreateSkill() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createSkill,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['skills'] }) },
+  })
+}
+
+export function useCreateTool() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createTool,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tools'] }) },
+  })
+}
+
+export function usePublishAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: string }) => apiService.publishAgent(id, version),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
+  })
+}

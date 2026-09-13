@@ -1,0 +1,519 @@
+export interface Tenant {
+  id: string
+  name: string
+  display_name: string
+  plan: string
+  active: boolean
+  settings: Record<string, unknown>
+}
+
+export interface User {
+  id: string
+  tenant_id: string
+  email: string
+  display_name: string
+  role: string
+  active: boolean
+}
+
+export interface Application {
+  id: string
+  name: string
+  display_name: string
+  description: string
+  type: 'greenfield' | 'brownfield'
+  status: 'active' | 'archived' | 'draft'
+  repository?: Repository
+  technologies: string[]
+  team: string
+  risk_level: string
+  current_version: string
+  engineering_state_id?: string
+  pipeline_ids: string[]
+  harness_ids: string[]
+  requirement_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface Repository {
+  id: string
+  url: string
+  branch: string
+  provider: string
+  default_branch: string
+  discovered: boolean
+  semantic_model_built: boolean
+}
+
+export interface Requirement {
+  id: string
+  title: string
+  description: string
+  application_id: string
+  status: string
+  priority: string
+  tags: string[]
+  acceptance_criteria: string[]
+  assigned_pipeline_id?: string
+  estimated_complexity: string
+  created_at: string
+}
+
+export interface AgentContract {
+  id: string
+  skill_ids: string[]
+  tool_ids: string[]
+  model_config_id?: string
+  permissions: string[]
+  max_turns: number
+  timeout_seconds: number
+  token_budget: number
+  cost_budget_cents: number
+  retry_policy: Record<string, unknown>
+  failure_behavior: string
+  evidence_requirements: string[]
+  harness_compatible: boolean
+  input_schema: Record<string, unknown>
+  output_schema: Record<string, unknown>
+  context_contract: Record<string, unknown>
+}
+
+export interface AgentVersion {
+  id: string
+  agent_id: string
+  version: string
+  published: boolean
+  deprecated: boolean
+  is_default: boolean
+  contract: AgentContract
+  system_instructions: string
+  changelog: string
+  created_at: string
+}
+
+export interface Agent {
+  id: string
+  name: string
+  display_name: string
+  category: string
+  purpose: string
+  role: string
+  model_config_id?: string
+  skill_ids: string[]
+  tool_ids: string[]
+  context_requirements: string[]
+  permissions: string[]
+  max_turns: number
+  timeout_seconds: number
+  token_budget: number
+  cost_budget_cents: number
+  retry_policy: Record<string, unknown>
+  security_restrictions: string[]
+  evidence_requirements: string[]
+  current_version: string
+  versions: AgentVersion[]
+  contract: AgentContract
+  system_instructions: string
+  published: boolean
+  tags: string[]
+  created_at: string
+}
+
+export interface Skill {
+  id: string
+  name: string
+  display_name: string
+  category: string
+  description: string
+  capabilities: string[]
+  language: string
+  framework: string
+  version: string
+  agent_ids: string[]
+  active: boolean
+  created_at: string
+}
+
+export interface Tool {
+  id: string
+  name: string
+  display_name: string
+  description: string
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  allowed_operations: string[]
+  supported_environments: string[]
+  permissions: string[]
+  timeout_seconds: number
+  output_limits: Record<string, number>
+  evidence_requirements: string[]
+  agent_ids: string[]
+  active: boolean
+  category: string
+  created_at: string
+}
+
+export interface ModelConfiguration {
+  id: string
+  name: string
+  display_name: string
+  provider: string
+  model: string
+  context_size: number
+  token_limit: number
+  cost_per_1k_input_cents: number
+  cost_per_1k_output_cents: number
+  temperature: number
+  structured_output: boolean
+  availability: string
+  active: boolean
+  created_at: string
+}
+
+export interface GraphNode {
+  id: string
+  node_type: string
+  label: string
+  ref_id?: string
+  config: Record<string, unknown>
+  position_x: number
+  position_y: number
+  description: string
+}
+
+export interface GraphEdge {
+  id: string
+  source_node_id: string
+  target_node_id: string
+  label: string
+  condition?: string
+  edge_type: string
+}
+
+export interface Graph {
+  id: string
+  name: string
+  display_name: string
+  description: string
+  version: string
+  published: boolean
+  is_default: boolean
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  harness_id?: string
+  created_at: string
+}
+
+export interface Loop {
+  id: string
+  name: string
+  display_name: string
+  loop_type: string
+  trigger: string
+  entry_condition?: string
+  evaluation: string
+  action: string
+  max_iterations: number
+  exit_condition: string
+  failure_handling: string
+  escalation: string
+  harness_id?: string
+  version: string
+  published: boolean
+  is_default: boolean
+  created_at: string
+}
+
+export interface HarnessVersion {
+  id: string
+  harness_id: string
+  version: string
+  published: boolean
+  is_default: boolean
+  graph_id?: string
+  loop_ids: string[]
+  agent_ids: string[]
+  skill_ids: string[]
+  tool_ids: string[]
+  model_config_ids: string[]
+  environment: string
+  cost_limit_cents: number
+  time_limit_seconds: number
+  approval_required: boolean
+  changelog: string
+  created_at: string
+}
+
+export interface Harness {
+  id: string
+  name: string
+  display_name: string
+  purpose: string
+  harness_type: string
+  inputs: string[]
+  outputs: string[]
+  context: Record<string, unknown>
+  graph_id?: string
+  loop_ids: string[]
+  agent_ids: string[]
+  skill_ids: string[]
+  tool_ids: string[]
+  model_config_ids: string[]
+  policy_ids: string[]
+  permissions: string[]
+  environment: string
+  cost_limit_cents: number
+  time_limit_seconds: number
+  approval_required: boolean
+  current_version: string
+  versions: HarnessVersion[]
+  template_id?: string
+  published: boolean
+  application_id?: string
+  tags: string[]
+  created_at: string
+}
+
+export interface HarnessTemplate {
+  id: string
+  name: string
+  display_name: string
+  description: string
+  harness_type: string
+  mandatory_steps: string[]
+  optional_steps: string[]
+  configurable: string[]
+  tenant_override_allowed: boolean
+  tenant_override_forbidden: string[]
+  created_at: string
+}
+
+export interface PipelineStage {
+  id: string
+  name: string
+  stage_type: string
+  harness_id: string
+  order: number
+  condition?: string
+  required: boolean
+}
+
+export interface Pipeline {
+  id: string
+  name: string
+  display_name: string
+  description: string
+  application_id?: string
+  stages: PipelineStage[]
+  current_version: string
+  published: boolean
+  active: boolean
+  tags: string[]
+  created_at: string
+}
+
+export interface ExecutionEvent {
+  id: string
+  execution_id: string
+  event_type: string
+  timestamp: string
+  node_id?: string
+  agent_id?: string
+  tool_id?: string
+  harness_id?: string
+  pipeline_id?: string
+  message: string
+  data: Record<string, unknown>
+}
+
+export interface Execution {
+  id: string
+  pipeline_id?: string
+  harness_id?: string
+  application_id?: string
+  requirement_id?: string
+  status: string
+  started_at?: string
+  completed_at?: string
+  trigger: string
+  trigger_reason: string
+  current_stage?: string
+  current_node?: string
+  events: ExecutionEvent[]
+  evidence_ids: string[]
+  approval_ids: string[]
+  cost_cents: number
+  tokens_used: number
+  retry_count: number
+  error_message?: string
+  progress: number
+  result: Record<string, unknown>
+  created_at: string
+}
+
+export interface Approval {
+  id: string
+  execution_id: string
+  status: string
+  requested_by: string
+  requested_at: string
+  decided_by?: string
+  decided_at?: string
+  reason: string
+  risk_level: string
+}
+
+export interface Policy {
+  id: string
+  name: string
+  display_name: string
+  description: string
+  policy_type: string
+  scope: string
+  target_id?: string
+  rules: Record<string, unknown>[]
+  enforcement: string
+  active: boolean
+  priority: number
+  created_at: string
+}
+
+export interface Evidence {
+  id: string
+  execution_id: string
+  evidence_type: string
+  agent_id?: string
+  agent_version?: string
+  model_used?: string
+  harness_id?: string
+  harness_version?: string
+  tool_id?: string
+  inputs: Record<string, unknown>
+  outputs: Record<string, unknown>
+  code_changes: Record<string, unknown>[]
+  test_results: Record<string, unknown>
+  security_results: Record<string, unknown>
+  policies_applied: string[]
+  timestamp: string
+  hash: string
+  summary: string
+}
+
+export interface EngineeringDecision {
+  id: string
+  application_id: string
+  decision: string
+  rationale: string
+  decided_by: string
+  impact: string
+  tags: string[]
+  created_at: string
+}
+
+export interface EngineeringState {
+  id: string
+  application_id: string
+  repository: string
+  branch: string
+  commit: string
+  version: string
+  architecture: Record<string, unknown>
+  technologies: string[]
+  dependencies: Record<string, unknown>[]
+  apis: Record<string, unknown>[]
+  tests: Record<string, unknown>
+  security: Record<string, unknown>
+  build: Record<string, unknown>
+  release: Record<string, unknown>
+  deployment: Record<string, unknown>
+  known_issues: Record<string, unknown>[]
+  open_changes: Record<string, unknown>[]
+  evidence_ids: string[]
+  decisions: EngineeringDecision[]
+  last_updated: string
+  health_score: number
+  coverage_pct: number
+  security_findings: number
+  open_vulnerabilities: number
+}
+
+export interface Environment {
+  id: string
+  name: string
+  display_name: string
+  env_type: string
+  application_id?: string
+  cluster: string
+  region: string
+  protected: boolean
+  requires_approval: boolean
+  active: boolean
+}
+
+export interface Artifact {
+  id: string
+  application_id: string
+  name: string
+  version: string
+  type: string
+  hash: string
+  registry: string
+  size_bytes: number
+  tags: string[]
+}
+
+export interface Deployment {
+  id: string
+  application_id: string
+  environment_id: string
+  artifact_id?: string
+  version: string
+  status: string
+  strategy: string
+  started_at?: string
+  completed_at?: string
+  verified: boolean
+  verification_results: Record<string, unknown>
+  rollback_supported: boolean
+  health_checks: Record<string, unknown>[]
+}
+
+export interface DashboardData {
+  counts: Record<string, number>
+  execution_status: Record<string, number>
+  economics: {
+    total_tokens: number
+    total_cost_cents: number
+    total_cost_dollars: number
+  }
+  quality: {
+    avg_health_score: number
+    avg_coverage_pct: number
+    total_security_findings: number
+    total_open_vulnerabilities: number
+  }
+  recent_executions: Array<{
+    id: string
+    status: string
+    progress: number
+    application: string
+    pipeline: string
+    started_at?: string
+    completed_at?: string
+    tokens_used: number
+    cost_cents: number
+    retry_count: number
+    error_message?: string
+  }>
+  applications_overview: Array<{
+    id: string
+    name: string
+    type: string
+    risk_level: string
+    version: string
+    technologies: string[]
+    team: string
+    pipelines: number
+    requirements: number
+  }>
+}
