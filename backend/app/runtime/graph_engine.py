@@ -11,6 +11,7 @@ from ..domain.models.graph import (
 from ..domain.models.base import gen_id, utc_now
 from ..domain.models.execution import ExecutionEvent, EventType
 from ..domain.models.evidence import EvidenceType
+from ..events.emit import emit_event
 from .agent_runtime import AgentRuntime
 from .tool_runtime import ToolRuntime
 from .context_engine import ContextEngine
@@ -78,7 +79,7 @@ class GraphEngine:
         state.status = "running"
         state.started_at = utc_now().isoformat()
 
-        store_event(execution_id, EventType.GRAPH_NODE_STARTED, f"Graph '{graph.display_name}' execution started")
+        emit_event(execution_id, EventType.GRAPH_NODE_STARTED, f"Graph '{graph.display_name}' execution started")
 
         layers = self._topological_sort(graph)
         node_results: dict[str, dict] = {}
@@ -112,7 +113,7 @@ class GraphEngine:
         state.status = "completed" if all_succeeded else "failed"
         state.completed_at = utc_now().isoformat()
 
-        store_event(execution_id, EventType.GRAPH_NODE_COMPLETED, f"Graph execution {'completed' if all_succeeded else 'failed'}")
+        emit_event(execution_id, EventType.GRAPH_NODE_COMPLETED, f"Graph execution {'completed' if all_succeeded else 'failed'}")
 
         return {
             "status": state.status,
@@ -125,8 +126,8 @@ class GraphEngine:
         self, node: GraphNode, execution_id: str, harness_id: str,
         environment: str, application_id: Optional[str], requirement_id: Optional[str],
     ) -> dict:
-        store_event(execution_id, EventType.GRAPH_NODE_STARTED,
-                    f"Node '{node.label}' ({node.node_type.value}) started", node_id=node.id)
+        emit_event(execution_id, EventType.GRAPH_NODE_STARTED,
+                   f"Node '{node.label}' ({node.node_type.value}) started", node_id=node.id)
 
         await asyncio.sleep(0.03)
 
@@ -174,35 +175,30 @@ class GraphEngine:
             )
 
         elif node.node_type == GraphNodeType.APPROVAL:
-            store_event(execution_id, EventType.APPROVAL_REQUESTED,
-                        f"Approval requested at node '{node.label}'", node_id=node.id)
+            emit_event(execution_id, EventType.APPROVAL_REQUESTED,
+                       f"Approval requested at node '{node.label}'", node_id=node.id)
             result["status"] = "awaiting_approval"
 
         elif node.node_type == GraphNodeType.VERIFICATION:
-            store_event(execution_id, EventType.EVALUATION_STARTED,
-                        f"Verification at node '{node.label}'", node_id=node.id)
+            emit_event(execution_id, EventType.EVALUATION_STARTED,
+                       f"Verification at node '{node.label}'", node_id=node.id)
             await asyncio.sleep(0.02)
-            store_event(execution_id, EventType.EVALUATION_COMPLETED,
-                        f"Verification passed at node '{node.label}'", node_id=node.id)
+            emit_event(execution_id, EventType.EVALUATION_COMPLETED,
+                       f"Verification passed at node '{node.label}'", node_id=node.id)
 
         elif node.node_type == GraphNodeType.FAILURE_HANDLER:
-            store_event(execution_id, EventType.GRAPH_NODE_STARTED,
-                        f"Failure handler '{node.label}' activated", node_id=node.id)
+            emit_event(execution_id, EventType.GRAPH_NODE_STARTED,
+                       f"Failure handler '{node.label}' activated", node_id=node.id)
 
         elif node.node_type == GraphNodeType.HUMAN_TASK:
-            store_event(execution_id, EventType.APPROVAL_REQUESTED,
-                        f"Human task '{node.label}' waiting for input", node_id=node.id)
+            emit_event(execution_id, EventType.APPROVAL_REQUESTED,
+                       f"Human task '{node.label}' waiting for input", node_id=node.id)
             result["status"] = "awaiting_approval"
 
-        store_event(execution_id, EventType.GRAPH_NODE_COMPLETED,
-                    f"Node '{node.label}' completed", node_id=node.id)
+        emit_event(execution_id, EventType.GRAPH_NODE_COMPLETED,
+                   f"Node '{node.label}' completed", node_id=node.id)
 
         return result
 
 
-def store_event(execution_id: str, event_type: EventType, message: str, node_id: Optional[str] = None) -> None:
-    evt = ExecutionEvent(
-        id=gen_id("evt_"), execution_id=execution_id,
-        event_type=event_type, node_id=node_id, message=message,
-    )
-    store.events.append(evt)
+

@@ -7,6 +7,7 @@ from ..storage.in_memory import store
 from ..domain.models.pipeline import Pipeline, PipelineStageType, FailureStrategy
 from ..domain.models.base import gen_id, utc_now
 from ..domain.models.execution import Execution, ExecutionEvent, EventType
+from ..events.emit import emit_event
 from .harness_runtime import HarnessRuntime
 
 
@@ -32,15 +33,13 @@ class PipelineRuntime:
         if pipeline is None:
             return {"status": "failed", "error": "Pipeline not found"}
 
-        start_evt = ExecutionEvent(
-            id=gen_id("evt_"),
+        start_evt = emit_event(
             execution_id=execution_id,
             event_type=EventType.PIPELINE_STARTED,
             pipeline_id=pipeline_id,
             message=f"Pipeline '{pipeline.display_name}' started",
             data={"stages": len(pipeline.stages)},
         )
-        store.events.append(start_evt)
 
         execution = store.executions.get(execution_id)
         if execution:
@@ -74,15 +73,13 @@ class PipelineRuntime:
 
             # Emit stage started events
             for s in parallel_group:
-                evt = ExecutionEvent(
-                    id=gen_id("evt_"),
+                evt = emit_event(
                     execution_id=execution_id,
                     event_type=EventType.GRAPH_NODE_STARTED,
                     pipeline_id=pipeline_id,
                     message=f"Stage '{s.name}' ({s.stage_type.value}) started",
                     data={"stage_type": s.stage_type.value, "stage_name": s.name},
                 )
-                store.events.append(evt)
 
             # Evaluate conditions
             skip_stage = False
@@ -90,14 +87,12 @@ class PipelineRuntime:
                 if s.condition:
                     condition_met = self._evaluate_condition(s.condition, stage_results)
                     if not condition_met:
-                        skip_evt = ExecutionEvent(
-                            id=gen_id("evt_"),
+                        skip_evt = emit_event(
                             execution_id=execution_id,
                             event_type=EventType.GRAPH_NODE_COMPLETED,
                             pipeline_id=pipeline_id,
                             message=f"Stage '{s.name}' skipped - condition not met: {s.condition}",
                         )
-                        store.events.append(skip_evt)
                         skip_stage = True
                         break
 
@@ -115,15 +110,13 @@ class PipelineRuntime:
             if any(s.stage_type == PipelineStageType.APPROVAL for s in parallel_group):
                 for s in parallel_group:
                     if s.stage_type == PipelineStageType.APPROVAL:
-                        approval_evt = ExecutionEvent(
-                            id=gen_id("evt_"),
+                        approval_evt = emit_event(
                             execution_id=execution_id,
                             event_type=EventType.APPROVAL_REQUESTED,
                             pipeline_id=pipeline_id,
                             message=f"Approval requested for stage '{s.name}'",
                             data={"stage_name": s.name},
                         )
-                        store.events.append(approval_evt)
                         if execution:
                             execution.status = "AWAITING_APPROVAL"
                         stage_results.append({
@@ -142,15 +135,13 @@ class PipelineRuntime:
                         s.config.conditions[0] if s.config.conditions else (s.condition or "true"),
                         stage_results,
                     )
-                    evt = ExecutionEvent(
-                        id=gen_id("evt_"),
+                    evt = emit_event(
                         execution_id=execution_id,
                         event_type=EventType.GRAPH_NODE_COMPLETED,
                         pipeline_id=pipeline_id,
                         message=f"Condition stage '{s.name}' evaluated: {condition_result}",
                         data={"condition_result": condition_result},
                     )
-                    store.events.append(evt)
                     stage_results.append({
                         "stage": s.name,
                         "type": "condition",
@@ -181,14 +172,12 @@ class PipelineRuntime:
                     completed += 1
                     if r.get("status") == "failed":
                         failure_strategy = s.config.failure_strategy
-                        fail_evt = ExecutionEvent(
-                            id=gen_id("evt_"),
+                        fail_evt = emit_event(
                             execution_id=execution_id,
                             event_type=EventType.EXECUTION_FAILED,
                             pipeline_id=pipeline_id,
                             message=f"Pipeline failed at parallel stage '{s.name}'",
                         )
-                        store.events.append(fail_evt)
                         if failure_strategy == FailureStrategy.CONTINUE:
                             continue
                         if execution:
@@ -210,35 +199,29 @@ class PipelineRuntime:
 
                 if harness_result.get("status") == "failed":
                     failure_strategy = stage.config.failure_strategy
-                    fail_evt = ExecutionEvent(
-                        id=gen_id("evt_"),
+                    fail_evt = emit_event(
                         execution_id=execution_id,
                         event_type=EventType.EXECUTION_FAILED,
                         pipeline_id=pipeline_id,
                         message=f"Pipeline failed at stage '{stage.name}'",
                     )
-                    store.events.append(fail_evt)
 
                     if failure_strategy == FailureStrategy.CONTINUE:
-                        cont_evt = ExecutionEvent(
-                            id=gen_id("evt_"),
+                        cont_evt = emit_event(
                             execution_id=execution_id,
                             event_type=EventType.GRAPH_NODE_COMPLETED,
                             pipeline_id=pipeline_id,
                             message=f"Continuing past failed stage '{stage.name}' (failure strategy: continue)",
                         )
-                        store.events.append(cont_evt)
                         i = j
                         continue
                     elif failure_strategy == FailureStrategy.SKIP:
-                        skip_evt = ExecutionEvent(
-                            id=gen_id("evt_"),
+                        skip_evt = emit_event(
                             execution_id=execution_id,
                             event_type=EventType.GRAPH_NODE_COMPLETED,
                             pipeline_id=pipeline_id,
                             message=f"Skipping remaining stages after '{stage.name}' (failure strategy: skip)",
                         )
-                        store.events.append(skip_evt)
                         break
                     else:
                         if execution:
@@ -249,27 +232,23 @@ class PipelineRuntime:
 
             i = j
 
-        complete_evt = ExecutionEvent(
-            id=gen_id("evt_"),
+        complete_evt = emit_event(
             execution_id=execution_id,
             event_type=EventType.PIPELINE_COMPLETED,
             pipeline_id=pipeline_id,
             message=f"Pipeline '{pipeline.display_name}' completed",
         )
-        store.events.append(complete_evt)
 
         if execution:
             execution.status = "COMPLETED"
             execution.completed_at = utc_now().isoformat()
             execution.progress = 100.0
 
-        done_evt = ExecutionEvent(
-            id=gen_id("evt_"),
+        done_evt = emit_event(
             execution_id=execution_id,
             event_type=EventType.EXECUTION_COMPLETED,
             message="Execution completed successfully",
         )
-        store.events.append(done_evt)
 
         return {"status": "completed", "stages": len(sorted_stages), "results": stage_results}
 

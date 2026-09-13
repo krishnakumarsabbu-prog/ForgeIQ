@@ -6,6 +6,7 @@ from ..storage.in_memory import store
 from ..domain.models.policy import Policy
 from ..domain.models.base import gen_id
 from ..domain.models.execution import ExecutionEvent, EventType
+from ..events.emit import emit_event
 
 
 class PolicyEngine:
@@ -35,14 +36,12 @@ class PolicyEngine:
             applied.append(policy.display_name)
 
             if policy.policy_type.value == "prohibit":
-                evt = ExecutionEvent(
-                    id=gen_id("evt_"),
+                evt = emit_event(
                     execution_id=execution_id,
                     event_type=EventType.POLICY_CHECKED,
                     node_id=node_id,
                     message=f"Policy '{policy.display_name}' evaluated: PROHIBITED",
                 )
-                store.events.append(evt)
                 return False, applied
 
             if policy.policy_type.value == "require":
@@ -50,14 +49,12 @@ class PolicyEngine:
                 if policy.target_id and field_val != policy.target_id:
                     continue
 
-        evt = ExecutionEvent(
-            id=gen_id("evt_"),
+        evt = emit_event(
             execution_id=execution_id,
             event_type=EventType.POLICY_CHECKED,
             node_id=node_id,
             message=f"Policy check: PASSED ({len(applied)} policies applied)",
         )
-        store.events.append(evt)
         return True, applied
 
     def check_approval_required(self, harness_id: str, environment: str) -> bool:

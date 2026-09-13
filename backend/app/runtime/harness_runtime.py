@@ -8,6 +8,7 @@ from ..domain.models.harness import Harness
 from ..domain.models.base import gen_id, utc_now
 from ..domain.models.execution import ExecutionEvent, EventType, Execution
 from ..domain.models.evidence import EvidenceType
+from ..events.emit import emit_event
 from .graph_engine import GraphEngine
 from .loop_engine import LoopEngine
 from .policy_engine import PolicyEngine
@@ -40,15 +41,13 @@ class HarnessRuntime:
         if harness is None:
             return {"status": "failed", "error": "Harness not found"}
 
-        start_evt = ExecutionEvent(
-            id=gen_id("evt_"),
+        start_evt = emit_event(
             execution_id=execution_id,
             event_type=EventType.HARNESS_STARTED,
             harness_id=harness_id,
             message=f"Harness '{harness.display_name}' started in {environment}",
             data={"harness_type": harness.harness_type.value, "environment": environment},
         )
-        store.events.append(start_evt)
 
         pol_ok, applied = self.policy_engine.evaluate(
             scope="harness",
@@ -57,25 +56,21 @@ class HarnessRuntime:
             execution_id=execution_id,
         )
         if not pol_ok:
-            fail_evt = ExecutionEvent(
-                id=gen_id("evt_"),
+            fail_evt = emit_event(
                 execution_id=execution_id,
                 event_type=EventType.EXECUTION_FAILED,
                 harness_id=harness_id,
                 message=f"Harness '{harness.display_name}' blocked by policy",
             )
-            store.events.append(fail_evt)
             return {"status": "failed", "error": "Blocked by policy", "policies": applied}
 
         if self.policy_engine.check_approval_required(harness_id, environment):
-            approval_evt = ExecutionEvent(
-                id=gen_id("evt_"),
+            approval_evt = emit_event(
                 execution_id=execution_id,
                 event_type=EventType.APPROVAL_REQUESTED,
                 harness_id=harness_id,
                 message=f"Approval required for harness '{harness.display_name}' in {environment}",
             )
-            store.events.append(approval_evt)
 
         graph_result = {"status": "skipped"}
         if harness.graph_id:
@@ -98,15 +93,13 @@ class HarnessRuntime:
             summary=f"Harness '{harness.display_name}' executed in {environment}",
         )
 
-        complete_evt = ExecutionEvent(
-            id=gen_id("evt_"),
+        complete_evt = emit_event(
             execution_id=execution_id,
             event_type=EventType.HARNESS_COMPLETED,
             harness_id=harness_id,
             message=f"Harness '{harness.display_name}' completed",
             data=graph_result,
         )
-        store.events.append(complete_evt)
 
         return {
             "status": "completed" if graph_result.get("status") != "failed" else "failed",

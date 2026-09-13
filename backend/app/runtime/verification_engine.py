@@ -5,6 +5,7 @@ from typing import Optional
 from ..storage.in_memory import store
 from ..domain.models.base import gen_id
 from ..domain.models.execution import ExecutionEvent, EventType
+from ..events.emit import emit_event
 
 
 class VerificationEngine:
@@ -27,14 +28,12 @@ class VerificationEngine:
         results = []
         for check_name, check_status in checks:
             results.append({"name": check_name, "status": check_status})
-            evt = ExecutionEvent(
-                id=gen_id("evt_"),
+            evt = emit_event(
                 execution_id=execution_id,
                 event_type=EventType.EVALUATION_COMPLETED,
                 node_id=node_id,
                 message=f"Verification check '{check_name}': {check_status}",
             )
-            store.events.append(evt)
 
         all_passed = all(r["status"] == "passed" for r in results)
         deployment.verified = all_passed

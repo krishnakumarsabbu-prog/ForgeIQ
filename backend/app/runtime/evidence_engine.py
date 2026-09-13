@@ -8,6 +8,7 @@ from ..storage.in_memory import store
 from ..domain.models.evidence import Evidence, EvidenceType
 from ..domain.models.base import gen_id, utc_now
 from ..domain.models.execution import ExecutionEvent, EventType
+from ..events.emit import emit_event
 
 
 class EvidenceEngine:
@@ -68,8 +69,7 @@ class EvidenceEngine:
         if execution:
             execution.evidence_ids.append(evidence.id)
 
-        evt = ExecutionEvent(
-            id=gen_id("evt_"),
+        evt = emit_event(
             execution_id=execution_id,
             event_type=EventType.EVIDENCE_CREATED,
             node_id=node_id,
@@ -77,6 +77,5 @@ class EvidenceEngine:
             message=f"Evidence created: {evidence_type.value}",
             data={"evidence_id": evidence.id, "hash": evidence.hash[:20]},
         )
-        store.events.append(evt)
 
         return evidence

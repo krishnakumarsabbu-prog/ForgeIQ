@@ -7,6 +7,7 @@ from ..storage.in_memory import store
 from ..domain.models.tool import Tool
 from ..domain.models.base import gen_id
 from ..domain.models.execution import ExecutionEvent, EventType
+from ..events.emit import emit_event
 
 
 class ToolRuntime:
@@ -40,8 +41,7 @@ class ToolRuntime:
         if tool is None:
             return {"status": "failed", "error": "Tool not found"}
 
-        req_event = ExecutionEvent(
-            id=gen_id("evt_"),
+        req_event = emit_event(
             execution_id=execution_id,
             event_type=EventType.TOOL_REQUESTED,
             tool_id=tool_id,
@@ -49,43 +49,36 @@ class ToolRuntime:
             node_id=node_id,
             message=f"Tool '{tool.display_name}' requested for operation '{operation}'",
         )
-        store.events.append(req_event)
 
         perm_ok, perm_msg = self.check_permissions(tool, operation, environment)
-        perm_event = ExecutionEvent(
-            id=gen_id("evt_"),
+        perm_event = emit_event(
             execution_id=execution_id,
             event_type=EventType.PERMISSION_CHECKED,
             tool_id=tool_id,
             node_id=node_id,
             message=f"Permission check: {'PASSED' if perm_ok else 'FAILED - ' + perm_msg}",
         )
-        store.events.append(perm_event)
         if not perm_ok:
             return {"status": "failed", "error": perm_msg}
 
         pol_ok, pol_msg = self.check_policies(tool, environment)
-        pol_event = ExecutionEvent(
-            id=gen_id("evt_"),
+        pol_event = emit_event(
             execution_id=execution_id,
             event_type=EventType.POLICY_CHECKED,
             tool_id=tool_id,
             node_id=node_id,
             message=f"Policy check: {'PASSED' if pol_ok else 'FAILED - ' + pol_msg}",
         )
-        store.events.append(pol_event)
         if not pol_ok:
             return {"status": "failed", "error": pol_msg}
 
-        exec_event = ExecutionEvent(
-            id=gen_id("evt_"),
+        exec_event = emit_event(
             execution_id=execution_id,
             event_type=EventType.TOOL_EXECUTED,
             tool_id=tool_id,
             node_id=node_id,
             message=f"Tool '{tool.display_name}' executing '{operation}' in {environment}",
         )
-        store.events.append(exec_event)
 
         await asyncio.sleep(0.05)
 
@@ -98,8 +91,7 @@ class ToolRuntime:
             "evidence": {"command": f"{tool.name} {operation}", "exit_code": 0},
         }
 
-        result_event = ExecutionEvent(
-            id=gen_id("evt_"),
+        result_event = emit_event(
             execution_id=execution_id,
             event_type=EventType.TOOL_RESULT,
             tool_id=tool_id,
@@ -107,6 +99,5 @@ class ToolRuntime:
             message=f"Tool '{tool.display_name}' result: success",
             data=result,
         )
-        store.events.append(result_event)
 
         return result

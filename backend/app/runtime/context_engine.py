@@ -5,6 +5,7 @@ from typing import Optional
 from ..storage.in_memory import store
 from ..domain.models.base import gen_id
 from ..domain.models.execution import ExecutionEvent, EventType
+from ..events.emit import emit_event
 from .engineering_state import EngineeringStateEngine
 
 
@@ -84,8 +85,7 @@ class ContextEngine:
             if state_context.get("found"):
                 context["engineering_state_detail"] = state_context
 
-        ctx_event = ExecutionEvent(
-            id=gen_id("evt_"),
+        ctx_event = emit_event(
             execution_id=execution_id,
             event_type=EventType.CONTEXT_PREPARED,
             agent_id=agent_id,
@@ -93,7 +93,6 @@ class ContextEngine:
             message=f"Context prepared: {len(context)} sections",
             data={"sections": list(context.keys())},
         )
-        store.events.append(ctx_event)
 
         return context
 

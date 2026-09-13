@@ -11,6 +11,7 @@ from ..domain.models.loop import (
 )
 from ..domain.models.base import gen_id, utc_now
 from ..domain.models.execution import ExecutionEvent, EventType
+from ..events.emit import emit_event
 
 
 class LoopEngine:
@@ -51,15 +52,13 @@ class LoopEngine:
         self, execution_id: str, event_type: EventType, message: str,
         node_id: Optional[str] = None, data: Optional[dict] = None,
     ) -> None:
-        evt = ExecutionEvent(
-            id=gen_id("evt_"),
+        emit_event(
             execution_id=execution_id,
             event_type=event_type,
             node_id=node_id,
             message=message,
             data=data or {},
         )
-        store.events.append(evt)
 
     async def execute_loop(
         self,

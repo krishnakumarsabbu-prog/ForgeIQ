@@ -7,6 +7,7 @@ from ..storage.in_memory import store
 from ..domain.models.agent import Agent, AgentContract
 from ..domain.models.base import gen_id, utc_now
 from ..domain.models.execution import ExecutionEvent, EventType
+from ..events.emit import emit_event
 
 
 class AgentRuntime:
@@ -37,8 +38,7 @@ class AgentRuntime:
         if not valid:
             return {"status": "failed", "error": msg}
 
-        event = ExecutionEvent(
-            id=gen_id("evt_"),
+        event = emit_event(
             execution_id=execution_id,
             event_type=EventType.AGENT_STARTED,
             agent_id=agent_id,
@@ -46,15 +46,13 @@ class AgentRuntime:
             message=f"Agent '{agent.display_name}' started",
             data={"inputs": list(inputs.keys())},
         )
-        store.events.append(event)
 
         await asyncio.sleep(0.05)
 
         model = store.models.get(agent.model_config_id) if agent.model_config_id else None
         model_name = model.model if model else "unknown"
 
-        context_event = ExecutionEvent(
-            id=gen_id("evt_"),
+        context_event = emit_event(
             execution_id=execution_id,
             event_type=EventType.CONTEXT_PREPARED,
             agent_id=agent_id,
@@ -62,7 +60,6 @@ class AgentRuntime:
             message=f"Context prepared for '{agent.display_name}'",
             data={"model": model_name, "skills": len(agent.skill_ids), "tools": len(agent.tool_ids)},
         )
-        store.events.append(context_event)
 
         await asyncio.sleep(0.05)
 
