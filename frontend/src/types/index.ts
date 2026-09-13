@@ -264,6 +264,23 @@ export interface Graph {
   created_at: string
 }
 
+export interface GraphDiagnostic {
+  severity: 'error' | 'warning'
+  code: string
+  message: string
+  node_id?: string
+  edge_id?: string
+}
+
+export interface GraphValidation {
+  valid: boolean
+  errors: GraphDiagnostic[]
+  warnings: GraphDiagnostic[]
+  diagnostics: GraphDiagnostic[]
+  node_count: number
+  edge_count: number
+}
+
 export interface Loop {
   id: string
   name: string

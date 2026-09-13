@@ -1,7 +1,7 @@
 import { api } from './client'
 import type {
   Application, Agent, Skill, Tool, ModelConfiguration, Harness, HarnessTemplate, HarnessVersion, HarnessVersionComparison,
-  Graph, Loop, Pipeline, Execution, ExecutionEvent, Evidence, EngineeringState,
+  Graph, GraphValidation, GraphNode, GraphEdge, Loop, Pipeline, Execution, ExecutionEvent, Evidence, EngineeringState,
   Policy, Requirement, Environment, Artifact, Deployment, DashboardData, Tenant, User, Approval,
   AgentTestResult, AgentVersionComparison, AgentFactoryFullBody, AgentVersion,
 } from '../types'
@@ -62,6 +62,7 @@ export const apiService = {
   harnesses: () => api.get<Harness[]>('/harnesses'),
   harness: (id: string) => api.get<Harness>(`/harnesses/${id}`),
   createHarness: (body: unknown) => api.post<Harness>('/harnesses', body),
+  updateHarness: (id: string, body: unknown) => api.put<Harness>(`/harnesses/${id}`, body),
   cloneHarness: (id: string, body: { display_name?: string }) => api.post<Harness>(`/harnesses/${id}/clone`, body),
   archiveHarness: (id: string) => api.post<Harness>(`/harnesses/${id}/archive`),
   harnessVersions: (id: string) => api.get<HarnessVersion[]>(`/harnesses/${id}/versions`),
@@ -73,8 +74,14 @@ export const apiService = {
   graphs: () => api.get<Graph[]>('/graphs'),
   graph: (id: string) => api.get<Graph>(`/graphs/${id}`),
   createGraph: (body: unknown) => api.post<Graph>('/graphs', body),
+  updateGraphFull: (id: string, body: unknown) => api.put<Graph>(`/graphs/${id}`, body),
   addNode: (id: string, body: unknown) => api.post<Graph>(`/graphs/${id}/nodes`, body),
+  updateNode: (id: string, nodeId: string, body: unknown) => api.put<GraphNode>(`/graphs/${id}/nodes/${nodeId}`, body) as unknown as Promise<GraphNode>,
+  deleteNode: (id: string, nodeId: string) => api.delete<Record<string, unknown>>(`/graphs/${id}/nodes/${nodeId}`),
   addEdge: (id: string, body: unknown) => api.post<Graph>(`/graphs/${id}/edges`, body),
+  updateEdge: (id: string, edgeId: string, body: unknown) => api.put<GraphEdge>(`/graphs/${id}/edges/${edgeId}`, body) as unknown as Promise<GraphEdge>,
+  deleteEdge: (id: string, edgeId: string) => api.delete<Record<string, unknown>>(`/graphs/${id}/edges/${edgeId}`),
+  validateGraph: (id: string) => api.get<GraphValidation>(`/graphs/${id}/validate`),
 
   loops: () => api.get<Loop[]>('/loops'),
   loop: (id: string) => api.get<Loop>(`/loops/${id}`),

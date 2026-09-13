@@ -138,6 +138,36 @@ export function useCreateHarness() {
   })
 }
 
+export function useUpdateHarness() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.updateHarness(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harnesses'] }) },
+  })
+}
+
+export function useCreateGraph() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createGraph,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['graphs'] }) },
+  })
+}
+
+export function useUpdateGraphFull() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.updateGraphFull(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['graphs'] }) },
+  })
+}
+
+export function useValidateGraph() {
+  return useMutation({
+    mutationFn: (id: string) => apiService.validateGraph(id),
+  })
+}
+
 export function useCloneHarness() {
   const qc = useQueryClient()
   return useMutation({
