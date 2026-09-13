@@ -143,14 +143,9 @@ class GraphEngine:
                 agent_id=node.ref_id,
                 inputs={"context": ctx, "config": node.config},
                 execution_id=execution_id, node_id=node.id,
+                harness_id=harness_id,
             )
             result["agent_result"] = agent_result
-            self.evidence_engine.create_evidence(
-                execution_id=execution_id, evidence_type=EvidenceType.AGENT,
-                agent_id=node.ref_id, harness_id=harness_id,
-                inputs={"context": "prepared"}, outputs=agent_result,
-                summary=f"Agent '{node.label}' executed", node_id=node.id,
-            )
 
         elif node.node_type == GraphNodeType.TOOL and node.ref_id:
             operation = node.config.get("operation", "execute")
