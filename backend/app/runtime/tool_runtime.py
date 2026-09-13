@@ -300,6 +300,9 @@ class ToolRuntime:
         status = "success" if success else "failed"
 
         # ── 9. Result ──────────────────────────────────────────────────
+        artifacts_data = [a.to_dict() for a in result.artifacts]
+        test_result_data = result.test_result.to_dict() if result.test_result else None
+
         tool_result = {
             "tool": tool.display_name,
             "tool_name": tool.name,
@@ -311,11 +314,26 @@ class ToolRuntime:
             "duration_ms": result.duration_ms,
             "files_changed": result.files_changed,
             "environment": environment,
+            "command": result.command,
+            "working_directory": result.working_directory,
+            "start_time": result.start_time,
+            "end_time": result.end_time,
+            "artifacts": artifacts_data,
+            "test_result": test_result_data,
+            "build_result": {
+                "succeeded": success,
+                "failed": not success,
+                "artifacts": artifacts_data,
+            } if artifacts_data or operation in ("build", "package", "compile") else None,
             "evidence": {
-                "command": f"{tool.name} {operation}",
+                "command": result.command or f"{tool.name} {operation}",
                 "exit_code": result.exit_code,
                 "duration_ms": result.duration_ms,
-                "working_dir": params.get("working_dir"),
+                "working_dir": result.working_directory or params.get("working_dir"),
+                "start_time": result.start_time,
+                "end_time": result.end_time,
+                "artifacts": artifacts_data,
+                "test_result": test_result_data,
             },
         }
 
@@ -333,6 +351,11 @@ class ToolRuntime:
                 "stdout_len": len(stdout),
                 "stderr_len": len(stderr),
                 "files_changed": result.files_changed,
+                "artifacts_count": len(artifacts_data),
+                "test_result": test_result_data,
+                "command": result.command,
+                "start_time": result.start_time,
+                "end_time": result.end_time,
             },
         )
 

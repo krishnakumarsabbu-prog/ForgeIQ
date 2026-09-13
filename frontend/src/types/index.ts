@@ -714,23 +714,71 @@ export interface Policy {
 
 export interface Evidence {
   id: string
+  tenant_id: string
+  application_id?: string
+  requirement_id?: string
   execution_id: string
-  evidence_type: string
+  pipeline_id?: string
+  pipeline_version?: string
+  harness_id?: string
+  harness_version?: string
+  graph_id?: string
+  graph_version?: string
+  loop_id?: string
+  loop_iteration?: number
+  node_id?: string
   agent_id?: string
   agent_version?: string
   model_used?: string
-  harness_id?: string
-  harness_version?: string
+  model_provider?: string
+  context_reference?: string
   tool_id?: string
+  tool_operation?: string
+  evidence_type: string
+  status: string
+  environment: string
+  summary: string
   inputs: Record<string, unknown>
   outputs: Record<string, unknown>
+  input_hash: string
+  output_reference: string
   code_changes: Record<string, unknown>[]
   test_results: Record<string, unknown>
   security_results: Record<string, unknown>
+  build_results: Record<string, unknown>
+  release_results: Record<string, unknown>
+  approvals: Record<string, unknown>[]
   policies_applied: string[]
+  policy_decisions: Record<string, unknown>[]
+  deployment: Record<string, unknown>
+  verification: Record<string, unknown>
   timestamp: string
   hash: string
-  summary: string
+  immutable: boolean
+  previous_evidence_id?: string
+  created_at: string
+}
+
+export interface EvidenceStats {
+  total: number
+  by_type: Record<string, number>
+  by_status: Record<string, number>
+  by_agent: Record<string, number>
+  by_application: Record<string, number>
+  by_environment: Record<string, number>
+}
+
+export interface EvidenceChainVerification {
+  execution_id: string
+  total: number
+  verified: number
+  broken: number
+  chain_intact: boolean
+}
+
+export interface EvidenceTypeOption {
+  types: { value: string; label: string }[]
+  statuses: { value: string; label: string }[]
 }
 
 export interface EngineeringDecision {

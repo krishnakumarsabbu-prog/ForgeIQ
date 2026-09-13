@@ -24,7 +24,7 @@ from ..domain.models.pipeline import (
 )
 from ..domain.models.execution import Execution, ExecutionEvent, EventType, Approval
 from ..domain.models.policy import Policy, PolicyType, PolicyScope
-from ..domain.models.evidence import Evidence, EvidenceType
+from ..domain.models.evidence import Evidence, EvidenceType, EvidenceStatus
 from ..domain.models.engineering_state import EngineeringState, EngineeringDecision, StateChangeRecord
 from ..domain.models.deployment import Environment, EnvironmentType, Artifact, Deployment
 from ..domain.models.semantic import SemanticEntity, SemanticEntityType
@@ -1346,44 +1346,270 @@ def _seed_executions() -> None:
 
 
 def _seed_evidence() -> None:
+    import hashlib
     executions = store.executions.all()
     agents = store.agents.all()
     models = store.models.all()
+    tools = store.tools.all()
+    harnesses = store.harnesses.all()
+    pipelines = store.pipelines.all()
+    apps = store.applications.all()
+    requirements = store.requirements.all()
+
+    agent_by_cat = {a.category.value: a for a in agents}
 
     for i, execution in enumerate(executions[:6]):
-        agent = agents[i % len(agents)]
+        app = apps[i % len(apps)] if apps else None
+        req = requirements[i % len(requirements)] if requirements else None
+        pipeline = next((p for p in pipelines if p.id == execution.pipeline_id), pipelines[i % len(pipelines)] if pipelines else None)
+        harness = next((h for h in harnesses if h.id == execution.harness_id), harnesses[i % len(harnesses)] if harnesses else None)
         model = models[i % len(models)]
+        coding_agent = agent_by_cat.get("coding", agents[i % len(agents)])
+        test_agent = agent_by_cat.get("test_generation", agents[(i + 1) % len(agents)])
+        sec_agent = agent_by_cat.get("security", agents[(i + 2) % len(agents)])
+        build_tool = next((t for t in tools if t.name == "npm"), tools[i % len(tools)])
+        sast_tool = next((t for t in tools if t.name == "sast-scanner"), tools[(i + 3) % len(tools)])
+        git_tool = next((t for t in tools if t.name == "git"), tools[0])
+        env = "staging" if i % 2 == 0 else "production"
 
-        evidence_types = [EvidenceType.CODE_CHANGE, EvidenceType.TEST, EvidenceType.SECURITY]
-        for j, etype in enumerate(evidence_types):
+        chain_records = [
+            dict(
+                evidence_type=EvidenceType.REQUIREMENT,
+                status=EvidenceStatus.INFO,
+                agent_id=None, model_used=None, tool_id=None,
+                environment="",
+                summary=f"Requirement '{req.title[:40]}' analyzed for execution {execution.id[:8]}" if req else f"Requirement analyzed for execution {execution.id[:8]}",
+                inputs={"requirement_text": req.description[:120] if req else ""},
+                outputs={"analysis": "Requirement decomposed into 3 engineering tasks"},
+                policies_applied=["requirement-validation"],
+            ),
+            dict(
+                evidence_type=EvidenceType.PIPELINE,
+                status=EvidenceStatus.INFO,
+                agent_id=None, model_used=None, tool_id=None,
+                environment="",
+                summary=f"Pipeline '{pipeline.display_name}' started" if pipeline else "Pipeline started",
+                inputs={"pipeline_id": pipeline.id if pipeline else ""},
+                outputs={"stages": 5, "trigger": execution.trigger},
+                policies_applied=["pipeline-governance"],
+            ),
+            dict(
+                evidence_type=EvidenceType.HARNESS,
+                status=EvidenceStatus.INFO,
+                agent_id=None, model_used=None, tool_id=None,
+                environment=env,
+                summary=f"Harness '{harness.display_name}' activated" if harness else "Harness activated",
+                inputs={"harness_id": harness.id if harness else ""},
+                outputs={"graph_id": harness.graph_id if harness else None, "agents": len(harness.agent_ids) if harness else 0},
+                policies_applied=["harness-execution-rules"],
+            ),
+            dict(
+                evidence_type=EvidenceType.GRAPH,
+                status=EvidenceStatus.INFO,
+                agent_id=None, model_used=None, tool_id=None,
+                environment=env,
+                summary=f"Graph executed for harness {harness.display_name}" if harness else "Graph executed",
+                inputs={"graph_id": harness.graph_id if harness else ""},
+                outputs={"nodes_executed": 8, "branches_taken": 2},
+            ),
+            dict(
+                evidence_type=EvidenceType.AGENT,
+                status=EvidenceStatus.INFO,
+                agent_id=coding_agent.id,
+                agent_version=coding_agent.current_version,
+                model_used=model.model,
+                model_provider=model.provider.value if hasattr(model.provider, 'value') else str(model.provider),
+                environment=env,
+                summary=f"Agent '{coding_agent.display_name}' started engineering work",
+                inputs={"task": "Implement payment processing service"},
+                outputs={"turns": 4, "tokens": 8500},
+                policies_applied=["agent-sandbox-isolation", "token-budget-enforcement"],
+            ),
+            dict(
+                evidence_type=EvidenceType.CONTEXT,
+                status=EvidenceStatus.INFO,
+                agent_id=coding_agent.id,
+                model_used=model.model,
+                environment=env,
+                summary="Engineering context prepared with 12 relevant files",
+                inputs={"query": "payment processing", "max_files": 20},
+                outputs={"files_included": 12, "tokens_retrieved": 3200},
+                context_reference="context://payment-service/12-files",
+            ),
+            dict(
+                evidence_type=EvidenceType.TOOL,
+                status=EvidenceStatus.SUCCESS,
+                agent_id=coding_agent.id,
+                model_used=model.model,
+                tool_id=git_tool.id,
+                tool_operation="commit",
+                environment=env,
+                summary=f"Tool '{git_tool.display_name}' executed: commit",
+                inputs={"operation": "commit", "message": "feat: add payment processing"},
+                outputs={"exit_code": 0, "files_changed": 5},
+                policies_applied=["tool-permission-check", "tool-risk-LOW-approved"],
+            ),
+            dict(
+                evidence_type=EvidenceType.CODE_CHANGE,
+                status=EvidenceStatus.SUCCESS,
+                agent_id=coding_agent.id,
+                agent_version=coding_agent.current_version,
+                model_used=model.model,
+                model_provider=model.provider.value if hasattr(model.provider, 'value') else str(model.provider),
+                tool_id=build_tool.id,
+                tool_operation="build",
+                environment=env,
+                summary=f"Code change: 5 files modified, 120 lines added",
+                inputs={"request": f"Implement payment service for execution {execution.id[:8]}"},
+                outputs={"files_changed": 5, "lines_added": 120, "lines_removed": 15},
+                code_changes=[
+                    {"file": f"src/main/Service{i}.java", "change_type": "modified", "additions": 45, "deletions": 3, "language": "java"},
+                    {"file": f"src/test/ServiceTest{i}.java", "change_type": "created", "additions": 75, "deletions": 0, "language": "java"},
+                ],
+                policies_applied=["agent-sandbox-isolation", "token-budget-enforcement"],
+            ),
+            dict(
+                evidence_type=EvidenceType.TEST,
+                status=EvidenceStatus.SUCCESS if i < 5 else EvidenceStatus.FAILED,
+                agent_id=test_agent.id if test_agent else coding_agent.id,
+                agent_version=(test_agent.current_version if test_agent else coding_agent.current_version),
+                model_used=models[(i + 1) % len(models)].model,
+                tool_id=next((t for t in tools if t.name == "jest"), tools[0]).id,
+                tool_operation="run",
+                environment=env,
+                summary=f"Tests executed: 42 passed, 0 failed, 2 skipped" if i < 5 else "Tests executed: 38 passed, 4 failed",
+                inputs={"test_path": "src/test/", "options": ["--coverage"]},
+                outputs={"total": 42, "passed": 42 if i < 5 else 38, "failed": 0 if i < 5 else 4, "skipped": 2, "coverage_pct": 78 + i * 2},
+                test_results={
+                    "total": 42, "passed": 42 if i < 5 else 38, "failed": 0 if i < 5 else 4, "skipped": 2,
+                    "coverage_pct": 78 + i * 2,
+                    "details": [
+                        {"name": "PaymentServiceTest.testProcessPayment", "status": "passed", "duration_ms": 120},
+                        {"name": "PaymentServiceTest.testRefund", "status": "passed" if i < 5 else "failed", "duration_ms": 95},
+                    ],
+                },
+                policies_applied=["test-gate-enforcement"],
+            ),
+            dict(
+                evidence_type=EvidenceType.SECURITY,
+                status=EvidenceStatus.WARNING,
+                agent_id=sec_agent.id if sec_agent else coding_agent.id,
+                agent_version=(sec_agent.current_version if sec_agent else coding_agent.current_version),
+                model_used=models[(i + 2) % len(models)].model,
+                tool_id=sast_tool.id,
+                tool_operation="scan",
+                environment=env,
+                summary="SAST scan completed: 0 critical, 0 high, 2 medium, 5 low findings",
+                inputs={"target_path": "src/", "rules": ["owasp-top-10"]},
+                outputs={"critical": 0, "high": 0, "medium": 2, "low": 5, "total": 7},
+                security_results={
+                    "critical": 0, "high": 0, "medium": 2, "low": 5,
+                    "findings": [
+                        {"rule": "SQL_INJECTION", "severity": "medium", "file": "src/main/Service.java", "line": 42},
+                        {"rule": "HARDCODED_SECRET", "severity": "medium", "file": "src/main/Config.java", "line": 15},
+                    ],
+                },
+                policies_applied=["security-gate-enforcement", "no-critical-allowed"],
+            ),
+            dict(
+                evidence_type=EvidenceType.BUILD,
+                status=EvidenceStatus.SUCCESS,
+                agent_id=coding_agent.id,
+                model_used=model.model,
+                tool_id=build_tool.id,
+                tool_operation="build",
+                environment=env,
+                summary="Build completed: artifact produced in 180s",
+                inputs={"project": app.name if app else "project", "target": "build"},
+                outputs={"exit_code": 0, "artifact_path": f"dist/app-{i}.jar", "build_time_seconds": 180 + i * 20},
+                build_results={"status": "success", "build_time_seconds": 180 + i * 20, "artifact_path": f"dist/app-{i}.jar", "errors": [], "warnings": ["Deprecated API usage in 2 files"]},
+                policies_applied=["build-gate-enforcement"],
+            ),
+            dict(
+                evidence_type=EvidenceType.APPROVAL,
+                status=EvidenceStatus.INFO,
+                environment=env,
+                summary="Approval granted for release by Marcus Rivera",
+                inputs={"risk_level": "MEDIUM", "requested_by": "system"},
+                outputs={"decision": "approved"},
+                approvals=[
+                    {"approver": "Marcus Rivera", "decision": "approved", "reason": "Tests and security checks passed", "timestamp": _ts(1900 - i * 200)},
+                ],
+                policies_applied=["approval-gate-enforcement"],
+            ),
+            dict(
+                evidence_type=EvidenceType.RELEASE,
+                status=EvidenceStatus.SUCCESS,
+                agent_id=agent_by_cat.get("release_planning", coding_agent).id,
+                model_used=model.model,
+                environment=env,
+                summary=f"Release v{1 + i}.0.0 created with change impact analysis",
+                inputs={"version": f"{1 + i}.0.0", "changes": 5},
+                outputs={"version": f"{1 + i}.0.0", "release_notes": "Payment processing, security fixes, performance improvements"},
+                release_results={"version": f"{1 + i}.0.0", "changes_included": 5, "risk_level": "MEDIUM"},
+                policies_applied=["release-governance"],
+            ),
+            dict(
+                evidence_type=EvidenceType.DEPLOYMENT,
+                status=EvidenceStatus.SUCCESS if i < 4 else EvidenceStatus.FAILED,
+                agent_id=agent_by_cat.get("deployment", coding_agent).id,
+                model_used=model.model,
+                tool_id=next((t for t in tools if t.name == "deployment-api"), tools[0]).id,
+                tool_operation="deploy",
+                environment=env,
+                summary=f"Deployment to {env} {'succeeded' if i < 4 else 'failed'}",
+                inputs={"service": app.name if app else "service", "version": f"{1 + i}.0.0", "environment": env},
+                outputs={"deployment_id": f"dep_{i}", "status": "completed" if i < 4 else "failed"},
+                deployment={"environment": env, "version": f"{1 + i}.0.0", "strategy": "rolling", "artifact_id": f"art_{i}"},
+                policies_applied=["deployment-governance", "environment-protection"],
+            ),
+            dict(
+                evidence_type=EvidenceType.VERIFICATION,
+                status=EvidenceStatus.SUCCESS if i < 4 else EvidenceStatus.FAILED,
+                environment=env,
+                summary=f"Post-deployment verification {'passed' if i < 4 else 'failed'}: health checks, smoke tests, API tests",
+                inputs={"checks": ["health", "smoke", "api"]},
+                outputs={"health_checks": "passed" if i < 4 else "failed", "smoke_tests": "passed" if i < 4 else "failed"},
+                verification={"check_type": "full", "status": "passed" if i < 4 else "failed", "details": "Health: passed, Smoke: passed, API: passed" if i < 4 else "Health: failed"},
+                policies_applied=["verification-required"],
+            ),
+        ]
+
+        prev_id = None
+        for j, rec in enumerate(chain_records):
+            etype = rec.pop("evidence_type")
+            rec_status = rec.pop("status")
+            input_hash = hashlib.sha256(str(sorted(rec.get("inputs", {}).items())).encode()).hexdigest()
+            output_ref = hashlib.sha256(str(sorted(rec.get("outputs", {}).items())).encode()).hexdigest()
+            hash_payload = f"{execution.id}:{etype.value}:{input_hash}:{output_ref}:{_ts(2000 - i * 200 - j * 50)}"
+            ev_hash = hashlib.sha256(hash_payload.encode()).hexdigest()
+
             e = Evidence(
                 tenant_id=TENANT_ID,
                 id=gen_id("ev_"),
+                application_id=app.id if app else None,
+                requirement_id=req.id if req else None,
                 execution_id=execution.id,
+                pipeline_id=pipeline.id if pipeline else None,
+                pipeline_version=pipeline.current_version if pipeline else None,
+                harness_id=harness.id if harness else execution.harness_id,
+                harness_version=harness.current_version if harness else None,
+                graph_id=harness.graph_id if harness else None,
+                loop_id=None,
+                loop_iteration=None,
+                node_id=f"node_{j}" if j > 2 else None,
                 evidence_type=etype,
-                agent_id=agent.id,
-                agent_version=agent.current_version,
-                model_used=model.model,
-                harness_id=execution.harness_id,
-                inputs={"request": f"Process {etype.value} for execution {execution.id[:8]}"},
-                outputs={
-                    "status": "success",
-                    "files_changed": 5 + j,
-                    "lines_added": 120 + j * 30,
-                    "lines_removed": 15 + j * 5,
-                },
-                code_changes=[
-                    {"file": f"src/main/Service{i}.java", "additions": 45, "deletions": 3, "type": "modified"},
-                    {"file": f"src/test/ServiceTest{i}.java", "additions": 75, "deletions": 0, "type": "created"},
-                ] if etype == EvidenceType.CODE_CHANGE else [],
-                test_results={"total": 42, "passed": 40, "failed": 0, "skipped": 2} if etype == EvidenceType.TEST else {},
-                security_results={"critical": 0, "high": 0, "medium": 2, "low": 5} if etype == EvidenceType.SECURITY else {},
-                policies_applied=["agent-sandbox-isolation", "token-budget-enforcement"],
-                timestamp=_ts(2000 - i * 200),
-                hash=f"sha256:{'b3c4d5' * 10}",
-                summary=f"{etype.value} evidence for execution {execution.id[:8]}",
+                status=rec_status,
+                timestamp=_ts(2000 - i * 200 - j * 50),
+                hash=f"sha256:{ev_hash}",
+                input_hash=f"sha256:{input_hash}",
+                output_reference=f"sha256:{output_ref}",
+                previous_evidence_id=prev_id,
+                **rec,
             )
             store.evidence.add(e)
+            execution.evidence_ids.append(e.id)
+            prev_id = e.id
 
 
 def _seed_engineering_state() -> None:

@@ -7,6 +7,15 @@ Adapters attempt real execution where the environment permits. When a
 dependency (git, npm, python, etc.) is not available, the adapter returns
 a real error — it never fabricates a successful result.
 
+Every operation returns:
+    command, working directory, start time, end time, exit code, stdout, stderr, artifacts
+
+Build results produce structured artifact metadata:
+    name, version, path, checksum, created
+
+Test results capture structured data:
+    framework, tests, passed, failed, skipped, duration, coverage
+
 Architecture supports future adapters (SAST, SCA, Kubernetes, Cloud, etc.)
 by implementing the same interface.
 """
@@ -14,13 +23,60 @@ by implementing the same interface.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
+import re
 import shutil
 import subprocess
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+
+
+@dataclass
+class ArtifactMetadata:
+    name: str
+    version: str = ""
+    path: str = ""
+    checksum: str = ""
+    created: str = ""
+    size_bytes: int = 0
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "version": self.version,
+            "path": self.path,
+            "checksum": self.checksum,
+            "created": self.created,
+            "size_bytes": self.size_bytes,
+        }
+
+
+@dataclass
+class TestResult:
+    framework: str = ""
+    tests: int = 0
+    passed: int = 0
+    failed: int = 0
+    skipped: int = 0
+    duration_seconds: float = 0.0
+    coverage: Optional[float] = None
+
+    def to_dict(self) -> dict:
+        d = {
+            "framework": self.framework,
+            "tests": self.tests,
+            "passed": self.passed,
+            "failed": self.failed,
+            "skipped": self.skipped,
+            "duration_seconds": self.duration_seconds,
+        }
+        if self.coverage is not None:
+            d["coverage"] = self.coverage
+        return d
 
 
 @dataclass
@@ -31,6 +87,12 @@ class ToolResult:
     duration_ms: int = 0
     files_changed: list[str] = field(default_factory=list)
     extra: dict = field(default_factory=dict)
+    start_time: str = ""
+    end_time: str = ""
+    command: str = ""
+    working_directory: str = ""
+    artifacts: list[ArtifactMetadata] = field(default_factory=list)
+    test_result: Optional[TestResult] = None
 
 
 class ToolAdapter:
@@ -56,13 +118,27 @@ class ToolAdapter:
         return True, path
 
     @staticmethod
+    def _now_iso() -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+    @staticmethod
+    def _checksum(path: str) -> str:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+        return f"sha256:{h.hexdigest()}"
+
+    @staticmethod
     async def _run_command(
         cmd: list[str],
         timeout: int,
         env: Optional[dict] = None,
         cwd: Optional[str] = None,
     ) -> ToolResult:
+        start_dt = datetime.now(timezone.utc)
         start = time.monotonic()
+        cmd_str = " ".join(cmd)
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -74,27 +150,248 @@ class ToolAdapter:
             stdout_b, stderr_b = await asyncio.wait_for(
                 proc.communicate(), timeout=timeout
             )
+            end_dt = datetime.now(timezone.utc)
             elapsed = int((time.monotonic() - start) * 1000)
             return ToolResult(
                 exit_code=proc.returncode,
                 stdout=stdout_b.decode("utf-8", errors="replace"),
                 stderr=stderr_b.decode("utf-8", errors="replace"),
                 duration_ms=elapsed,
+                start_time=start_dt.isoformat(),
+                end_time=end_dt.isoformat(),
+                command=cmd_str,
+                working_directory=cwd or os.getcwd(),
             )
         except FileNotFoundError as exc:
+            end_dt = datetime.now(timezone.utc)
             elapsed = int((time.monotonic() - start) * 1000)
             return ToolResult(
                 exit_code=127,
                 stderr=str(exc),
                 duration_ms=elapsed,
+                start_time=start_dt.isoformat(),
+                end_time=end_dt.isoformat(),
+                command=cmd_str,
+                working_directory=cwd or os.getcwd(),
             )
         except asyncio.TimeoutError:
+            end_dt = datetime.now(timezone.utc)
             elapsed = int((time.monotonic() - start) * 1000)
             return ToolResult(
                 exit_code=124,
                 stderr=f"Command timed out after {timeout}s",
                 duration_ms=elapsed,
+                start_time=start_dt.isoformat(),
+                end_time=end_dt.isoformat(),
+                command=cmd_str,
+                working_directory=cwd or os.getcwd(),
             )
+
+    # ------------------------------------------------------------------
+    # Artifact discovery
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _discover_artifacts(
+        cwd: str,
+        patterns: list[tuple[str, str]],
+    ) -> list[ArtifactMetadata]:
+        """Discover build artifacts by glob pattern.
+
+        patterns: list of (glob_pattern, artifact_type)
+        Returns list of ArtifactMetadata for files that exist.
+        """
+        artifacts: list[ArtifactMetadata] = []
+        base = Path(cwd) if cwd else Path.cwd()
+
+        for pattern, artifact_type in patterns:
+            for path in base.glob(pattern):
+                if not path.is_file():
+                    continue
+                try:
+                    stat = path.stat()
+                    checksum = ToolAdapter._checksum(str(path))
+                    artifacts.append(ArtifactMetadata(
+                        name=path.name,
+                        path=str(path.relative_to(base)) if path.is_relative_to(base) else str(path),
+                        checksum=checksum,
+                        created=datetime.fromtimestamp(
+                            stat.st_mtime, tz=timezone.utc
+                        ).isoformat(),
+                        size_bytes=stat.st_size,
+                    ))
+                except (OSError, ValueError):
+                    continue
+        return artifacts
+
+    @staticmethod
+    def _extract_version(cwd: str) -> str:
+        """Try to read version from package.json or pom.xml."""
+        base = Path(cwd) if cwd else Path.cwd()
+
+        pkg = base / "package.json"
+        if pkg.is_file():
+            try:
+                import json
+                data = json.loads(pkg.read_text())
+                return data.get("version", "")
+            except (OSError, ValueError):
+                pass
+
+        pom = base / "pom.xml"
+        if pom.is_file():
+            try:
+                text = pom.read_text()
+                m = re.search(r"<version>([^<]+)</version>", text)
+                if m:
+                    return m.group(1).strip()
+            except OSError:
+                pass
+
+        return ""
+
+    # ------------------------------------------------------------------
+    # Test result parsing
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _parse_pytest_result(stdout: str, stderr: str, exit_code: int) -> TestResult:
+        """Parse pytest output for structured test results."""
+        result = TestResult(framework="pytest")
+
+        summary_line = ""
+        for line in (stdout + "\n" + stderr).splitlines():
+            if "passed" in line or "failed" in line or "error" in line or "skipped" in line:
+                if "===" in line or line.strip().startswith("====="):
+                    summary_line = line
+                    break
+
+        if not summary_line:
+            for line in (stdout + "\n" + stderr).splitlines():
+                stripped = line.strip()
+                if re.match(r"^(=+.*passed|=+.*failed|=+.*error)", stripped):
+                    summary_line = stripped
+                    break
+
+        if summary_line:
+            passed_m = re.search(r"(\d+)\s+passed", summary_line)
+            failed_m = re.search(r"(\d+)\s+failed", summary_line)
+            error_m = re.search(r"(\d+)\s+error", summary_line)
+            skipped_m = re.search(r"(\d+)\s+skipped", summary_line)
+
+            if passed_m:
+                result.passed = int(passed_m.group(1))
+            if failed_m:
+                result.failed = int(failed_m.group(1))
+            if error_m:
+                result.failed += int(error_m.group(1))
+            if skipped_m:
+                result.skipped = int(skipped_m.group(1))
+            result.tests = result.passed + result.failed + result.skipped
+
+        dur_m = re.search(r"in\s+([\d.]+)s", stdout + stderr)
+        if dur_m:
+            result.duration_seconds = float(dur_m.group(1))
+
+        cov_m = re.search(r"Total coverage:\s*([\d.]+)%", stdout + stderr)
+        if cov_m:
+            result.coverage = float(cov_m.group(1))
+        else:
+            cov_m2 = re.search(r"Lines\s*[=:]\s*([\d.]+)%", stdout + stderr)
+            if cov_m2:
+                result.coverage = float(cov_m2.group(1))
+
+        return result
+
+    @staticmethod
+    def _parse_jest_result(stdout: str, stderr: str, exit_code: int) -> TestResult:
+        """Parse Jest output for structured test results."""
+        result = TestResult(framework="jest")
+
+        for line in (stdout + "\n" + stderr).splitlines():
+            line = line.strip()
+            m = re.match(
+                r"Tests:\s+(\d+)\s+(?:failed|passed|skipped|todo|total)",
+                line,
+            )
+            if m:
+                result.tests = int(m.group(1))
+
+            passed_m = re.match(r"(\d+)\s+passed", line)
+            failed_m = re.match(r"(\d+)\s+failed", line)
+            skipped_m = re.match(r"(\d+)\s+(?:skipped|todo)", line)
+
+            if passed_m:
+                result.passed = int(passed_m.group(1))
+            if failed_m:
+                result.failed = int(failed_m.group(1))
+            if skipped_m:
+                result.skipped = int(skipped_m.group(1))
+
+        if result.tests == 0:
+            result.tests = result.passed + result.failed + result.skipped
+
+        dur_m = re.search(r"Time:\s+([\d.]+)\s*s", stdout + stderr)
+        if dur_m:
+            result.duration_seconds = float(dur_m.group(1))
+
+        cov_m = re.search(r"All files[^|]*\|\s*([\d.]+)\s*\|", stdout)
+        if cov_m:
+            result.coverage = float(cov_m.group(1))
+
+        return result
+
+    @staticmethod
+    def _parse_junit_result(stdout: str, stderr: str, exit_code: int) -> TestResult:
+        """Parse Maven Surefire/JUnit output for structured test results."""
+        result = TestResult(framework="junit")
+
+        combined = stdout + "\n" + stderr
+        for line in combined.splitlines():
+            line = line.strip()
+            tests_m = re.match(r"Tests\s+run:\s+(\d+)", line)
+            if tests_m:
+                result.tests = int(tests_m.group(1))
+                fail_m = re.search(r"Failures:\s+(\d+)", line)
+                err_m = re.search(r"Errors:\s+(\d+)", line)
+                skip_m = re.search(r"Skipped:\s+(\d+)", line)
+                if fail_m:
+                    result.failed = int(fail_m.group(1))
+                if err_m:
+                    result.failed += int(err_m.group(1))
+                if skip_m:
+                    result.skipped = int(skip_m.group(1))
+                result.passed = result.tests - result.failed - result.skipped
+                break
+
+        dur_m = re.search(r"BUILD SUCCESS.*\(([\d.]+)s\)|Total time:\s+([\d.]+)\s*s", combined)
+        if dur_m:
+            result.duration_seconds = float(dur_m.group(1) or dur_m.group(2))
+
+        return result
+
+    @staticmethod
+    def _parse_npm_test_result(stdout: str, stderr: str, exit_code: int) -> TestResult:
+        """Parse npm test output — delegates to jest or mocha pattern matching."""
+        combined = stdout + "\n" + stderr
+
+        if "jest" in combined.lower() or "Tests:" in combined:
+            return ToolAdapter._parse_jest_result(stdout, stderr, exit_code)
+
+        result = TestResult(framework="npm-test")
+        for line in combined.splitlines():
+            line = line.strip()
+            passing_m = re.match(r"(\d+)\s+passing", line)
+            failing_m = re.match(r"(\d+)\s+failing", line)
+            pending_m = re.match(r"(\d+)\s+pending", line)
+            if passing_m:
+                result.passed = int(passing_m.group(1))
+            if failing_m:
+                result.failed = int(failing_m.group(1))
+            if pending_m:
+                result.skipped = int(pending_m.group(1))
+        result.tests = result.passed + result.failed + result.skipped
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -279,19 +576,39 @@ class NpmAdapter(ToolAdapter):
 
         if operation == "install":
             cmd = ["npm", "install"] + args
-        elif operation == "test":
+            return await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+
+        if operation == "test":
             cmd = ["npm", "test"] + args
-        elif operation == "run":
+            result = await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            result.test_result = self._parse_npm_test_result(
+                result.stdout, result.stderr, result.exit_code
+            )
+            return result
+
+        if operation == "run":
             script_name = params.get("script", "")
             if not script_name:
                 return ToolResult(exit_code=1, stderr="script parameter required for 'run'")
             cmd = ["npm", "run", script_name] + args
-        elif operation == "build":
-            cmd = ["npm", "run", "build"] + args
-        else:
-            return ToolResult(exit_code=1, stderr=f"Unsupported npm operation: {operation}")
+            return await self._run_command(cmd, timeout, env=env, cwd=working_dir)
 
-        return await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+        if operation == "build":
+            cmd = ["npm", "run", "build"] + args
+            result = await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            if result.exit_code == 0:
+                version = self._extract_version(working_dir or ".")
+                artifacts = self._discover_artifacts(
+                    working_dir or ".",
+                    [("dist/**/*.js", "js"), ("dist/**/*.css", "css"),
+                     ("dist/**/*.html", "html"), ("build/**/*.js", "js")],
+                )
+                for a in artifacts:
+                    a.version = version
+                result.artifacts = artifacts
+            return result
+
+        return ToolResult(exit_code=1, stderr=f"Unsupported npm operation: {operation}")
 
 
 class PythonAdapter(ToolAdapter):
@@ -326,9 +643,13 @@ class PythonAdapter(ToolAdapter):
             )
 
         if operation == "pytest":
-            return await self._run_command(
+            result = await self._run_command(
                 [binary, "-m", "pytest"] + args, timeout, env=env, cwd=working_dir
             )
+            result.test_result = self._parse_pytest_result(
+                result.stdout, result.stderr, result.exit_code
+            )
+            return result
 
         return ToolResult(exit_code=1, stderr=f"Unsupported python operation: {operation}")
 
@@ -355,7 +676,25 @@ class MavenAdapter(ToolAdapter):
         cmd = ["mvn"] + goals
         if profile:
             cmd.extend([f"-P{profile}"])
-        return await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+        result = await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+
+        if operation == "test":
+            result.test_result = self._parse_junit_result(
+                result.stdout, result.stderr, result.exit_code
+            )
+        elif operation in ("package", "verify"):
+            if result.exit_code == 0:
+                version = self._extract_version(working_dir or ".")
+                artifacts = self._discover_artifacts(
+                    working_dir or ".",
+                    [("target/*.jar", "jar"), ("target/*.war", "war"),
+                     ("target/*.ear", "ear")],
+                )
+                for a in artifacts:
+                    a.version = version
+                result.artifacts = artifacts
+
+        return result
 
 
 class GradleAdapter(ToolAdapter):
@@ -375,7 +714,25 @@ class GradleAdapter(ToolAdapter):
         if isinstance(args, str):
             args = [args]
         cmd = [gradle_bin, task] + args
-        return await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+        result = await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+
+        if task in ("test", "check") and result.exit_code is not None:
+            result.test_result = self._parse_junit_result(
+                result.stdout, result.stderr, result.exit_code
+            )
+        elif task in ("build", "assemble", "bootJar", "bootWar"):
+            if result.exit_code == 0:
+                version = self._extract_version(working_dir or ".")
+                artifacts = self._discover_artifacts(
+                    working_dir or ".",
+                    [("build/libs/*.jar", "jar"), ("build/libs/*.war", "war"),
+                     ("build/distributions/*.zip", "zip")],
+                )
+                for a in artifacts:
+                    a.version = version
+                result.artifacts = artifacts
+
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -405,7 +762,11 @@ class PytestAdapter(ToolAdapter):
                 cmd = ["pytest", test_path] + options if test_path else ["pytest"] + options
             else:
                 cmd = [binary, "-m", "pytest", test_path] + options if test_path else [binary, "-m", "pytest"] + options
-            return await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            result = await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            result.test_result = self._parse_pytest_result(
+                result.stdout, result.stderr, result.exit_code
+            )
+            return result
 
         if operation == "collect":
             cmd = [binary, "--collect-only", "-q"] + ([test_path] if test_path else [])
@@ -431,7 +792,11 @@ class JUnitAdapter(ToolAdapter):
             cmd = ["mvn", "test"]
             if test_class:
                 cmd.extend([f"-Dtest={test_class}"])
-            return await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            result = await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            result.test_result = self._parse_junit_result(
+                result.stdout, result.stderr, result.exit_code
+            )
+            return result
 
         if operation == "report":
             cmd = ["mvn", "surefire-report:report"]
@@ -457,7 +822,11 @@ class JestAdapter(ToolAdapter):
 
         if operation == "run":
             cmd = ["npx", "jest"] + ([test_path] if test_path else []) + options
-            return await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            result = await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            result.test_result = self._parse_jest_result(
+                result.stdout, result.stderr, result.exit_code
+            )
+            return result
 
         if operation == "watch":
             cmd = ["npx", "jest", "--watch"] + ([test_path] if test_path else [])
@@ -465,7 +834,11 @@ class JestAdapter(ToolAdapter):
 
         if operation == "coverage":
             cmd = ["npx", "jest", "--coverage"] + ([test_path] if test_path else []) + options
-            return await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            result = await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            result.test_result = self._parse_jest_result(
+                result.stdout, result.stderr, result.exit_code
+            )
+            return result
 
         return ToolResult(exit_code=1, stderr=f"Unsupported jest operation: {operation}")
 
@@ -487,7 +860,26 @@ class PlaywrightAdapter(ToolAdapter):
                 cmd.append(spec)
             if browser:
                 cmd.extend([f"--browser={browser}"])
-            return await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            result = await self._run_command(cmd, timeout, env=env, cwd=working_dir)
+            result.test_result = TestResult(framework="playwright")
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                passed_m = re.match(r"(\d+)\s+passed", line)
+                failed_m = re.match(r"(\d+)\s+failed", line)
+                skipped_m = re.match(r"(\d+)\s+skipped", line)
+                if passed_m:
+                    result.test_result.passed = int(passed_m.group(1))
+                if failed_m:
+                    result.test_result.failed = int(failed_m.group(1))
+                if skipped_m:
+                    result.test_result.skipped = int(skipped_m.group(1))
+            result.test_result.tests = (
+                result.test_result.passed + result.test_result.failed + result.test_result.skipped
+            )
+            dur_m = re.search(r"finished in\s+([\d.]+)s", result.stdout)
+            if dur_m:
+                result.test_result.duration_seconds = float(dur_m.group(1))
+            return result
 
         if operation == "debug":
             cmd = ["npx", "playwright", "test", "--debug"]
@@ -512,34 +904,72 @@ class BuildRunnerAdapter(ToolAdapter):
 
     async def run(self, operation, params, env, timeout=300, working_dir=None):
         project = params.get("project", "")
-        target = params.get("target", "")
+        cwd = working_dir or project or "."
 
         if operation == "build":
             if shutil.which("npm"):
-                return await self._run_command(
-                    ["npm", "run", "build"], timeout, env=env, cwd=working_dir or project
+                result = await self._run_command(
+                    ["npm", "run", "build"], timeout, env=env, cwd=cwd
                 )
+                if result.exit_code == 0:
+                    version = self._extract_version(cwd)
+                    artifacts = self._discover_artifacts(
+                        cwd,
+                        [("dist/**/*.js", "js"), ("dist/**/*.css", "css"),
+                         ("dist/**/*.html", "html"), ("build/**/*.js", "js")],
+                    )
+                    for a in artifacts:
+                        a.version = version
+                    result.artifacts = artifacts
+                return result
             if shutil.which("mvn"):
-                return await self._run_command(
-                    ["mvn", "compile"], timeout, env=env, cwd=working_dir or project
+                result = await self._run_command(
+                    ["mvn", "compile"], timeout, env=env, cwd=cwd
                 )
+                if result.exit_code == 0:
+                    version = self._extract_version(cwd)
+                    artifacts = self._discover_artifacts(
+                        cwd,
+                        [("target/classes/**/*.class", "class"),
+                         ("target/*.jar", "jar")],
+                    )
+                    for a in artifacts:
+                        a.version = version
+                    result.artifacts = artifacts
+                return result
             return ToolResult(exit_code=127, stderr="No build tool (npm or mvn) found")
 
         if operation == "package":
             if shutil.which("mvn"):
-                return await self._run_command(
-                    ["mvn", "package", "-DskipTests"], timeout, env=env, cwd=working_dir or project
+                result = await self._run_command(
+                    ["mvn", "package", "-DskipTests"], timeout, env=env, cwd=cwd
                 )
+                if result.exit_code == 0:
+                    version = self._extract_version(cwd)
+                    artifacts = self._discover_artifacts(
+                        cwd, [("target/*.jar", "jar"), ("target/*.war", "war")]
+                    )
+                    for a in artifacts:
+                        a.version = version
+                    result.artifacts = artifacts
+                return result
             if shutil.which("npm"):
-                return await self._run_command(
-                    ["npm", "pack"], timeout, env=env, cwd=working_dir or project
+                result = await self._run_command(
+                    ["npm", "pack"], timeout, env=env, cwd=cwd
                 )
+                if result.exit_code == 0:
+                    version = self._extract_version(cwd)
+                    artifacts = self._discover_artifacts(cwd, [("./*.tgz", "tgz")])
+                    for a in artifacts:
+                        a.version = version
+                    result.artifacts = artifacts
+                return result
             return ToolResult(exit_code=127, stderr="No packaging tool found")
 
         if operation == "publish":
             if shutil.which("npm"):
                 return await self._run_command(
-                    ["npm", "publish"], timeout, env=env, cwd=working_dir or project
+                    ["npm", "publish"], timeout, env=env, cwd=cwd
                 )
             return ToolResult(exit_code=127, stderr="No publish tool (npm) found")
 

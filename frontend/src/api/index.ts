@@ -3,7 +3,7 @@ import type {
   Application, Agent, Skill, Tool, ModelConfiguration, Harness, HarnessTemplate, HarnessTemplateVersion,
   HarnessTemplateComparison, TemplateInheritanceChain, HarnessVersion, HarnessVersionComparison,
   Graph, GraphValidation, GraphNode, GraphEdge, GraphVersion, GraphSerialization, GraphExecutionResult, Loop, LoopStep,
-  Pipeline, PipelineTemplate, PipelineTemplateVersion, PipelineVersion, Execution, ExecutionEvent, Evidence, EngineeringState,
+  Pipeline, PipelineTemplate, PipelineTemplateVersion, PipelineVersion, Execution, ExecutionEvent, Evidence, EvidenceStats, EvidenceChainVerification, EvidenceTypeOption, EngineeringState,
   StateChangeRecord, EngineeringStateContext,
   Policy, Requirement, Environment, Artifact, Deployment, DashboardData, Tenant, User, Approval,
   AgentTestResult, AgentVersionComparison, AgentFactoryFullBody, AgentVersion,
@@ -160,9 +160,18 @@ export const apiService = {
   executionEvents: (id: string) => api.get<ExecutionEvent[]>(`/executions/${id}/events`),
   executionApprovals: (id: string) => api.get<Approval[]>(`/executions/${id}/approvals`),
 
-  evidence: () => api.get<Evidence[]>('/evidence'),
+  evidence: (params?: Record<string, string>) => {
+    const qs = params ? '?' + Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&') : ''
+    return api.get<Evidence[]>(`/evidence${qs}`)
+  },
   evidenceItem: (id: string) => api.get<Evidence>(`/evidence/${id}`),
   executionEvidence: (id: string) => api.get<Evidence[]>(`/evidence/execution/${id}`),
+  evidenceTimeline: (id: string) => api.get<Evidence[]>(`/evidence/execution/${id}`),
+  evidenceChainVerify: (id: string) => api.get<EvidenceChainVerification>(`/evidence/execution/${id}/chain-verify`),
+  evidenceStats: () => api.get<EvidenceStats>('/evidence/stats'),
+  evidenceTypes: () => api.get<EvidenceTypeOption>('/evidence/types'),
+  evidenceByApp: (id: string) => api.get<Evidence[]>(`/evidence/application/${id}`),
+  createEvidence: (body: unknown) => api.post<Evidence>('/evidence/', body),
 
   engineeringStates: () => api.get<EngineeringState[]>('/engineering-state'),
   engineeringState: (id: string) => api.get<EngineeringState>(`/engineering-state/${id}`),

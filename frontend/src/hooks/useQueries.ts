@@ -203,8 +203,27 @@ export function useExecutionEvents(id: string) {
   return useQuery({ queryKey: ['execution-events', id], queryFn: () => apiService.executionEvents(id), enabled: !!id, refetchInterval: 2000 })
 }
 
-export function useEvidence() {
-  return useQuery({ queryKey: ['evidence'], queryFn: apiService.evidence })
+export function useEvidence(params?: Record<string, string>) {
+  const queryKey = params ? ['evidence', JSON.stringify(params)] : ['evidence']
+  return useQuery({ queryKey, queryFn: () => apiService.evidence(params) })
+}
+export function useEvidenceItem(id: string) {
+  return useQuery({ queryKey: ['evidence-item', id], queryFn: () => apiService.evidenceItem(id), enabled: !!id })
+}
+export function useEvidenceTimeline(executionId: string) {
+  return useQuery({ queryKey: ['evidence-timeline', executionId], queryFn: () => apiService.evidenceTimeline(executionId), enabled: !!executionId })
+}
+export function useEvidenceChainVerify(executionId: string) {
+  return useQuery({ queryKey: ['evidence-chain-verify', executionId], queryFn: () => apiService.evidenceChainVerify(executionId), enabled: !!executionId })
+}
+export function useEvidenceStats() {
+  return useQuery({ queryKey: ['evidence-stats'], queryFn: apiService.evidenceStats })
+}
+export function useEvidenceTypes() {
+  return useQuery({ queryKey: ['evidence-types'], queryFn: apiService.evidenceTypes })
+}
+export function useAppEvidenceDirect(id: string) {
+  return useQuery({ queryKey: ['evidence-app', id], queryFn: () => apiService.evidenceByApp(id), enabled: !!id })
 }
 
 export function useEngineeringStates() {
