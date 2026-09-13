@@ -56,6 +56,72 @@ export function useGraph(id: string) {
 export function useLoops() {
   return useQuery({ queryKey: ['loops'], queryFn: apiService.loops })
 }
+export function useLoop(id: string) {
+  return useQuery({ queryKey: ['loop', id], queryFn: () => apiService.loop(id), enabled: !!id })
+}
+export function useLoopHistory(id: string) {
+  return useQuery({ queryKey: ['loop-history', id], queryFn: () => apiService.loopHistory(id), enabled: !!id })
+}
+export function useCreateLoop() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createLoop,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loops'] }) },
+  })
+}
+export function useUpdateLoop() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.updateLoop(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loops'] }) },
+  })
+}
+export function useDeleteLoop() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.deleteLoop,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loops'] }) },
+  })
+}
+export function usePublishLoop() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.publishLoop,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loops'] }) },
+  })
+}
+export function useExecuteLoop() {
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.executeLoop(id, body),
+  })
+}
+export function useLoopTypes() {
+  return useQuery({ queryKey: ['loop-types'], queryFn: apiService.loopTypes })
+}
+export function useLoopTriggers() {
+  return useQuery({ queryKey: ['loop-triggers'], queryFn: apiService.loopTriggers })
+}
+export function useLoopBackoffStrategies() {
+  return useQuery({ queryKey: ['loop-backoff'], queryFn: apiService.loopBackoffStrategies })
+}
+export function useLoopFailureHandling() {
+  return useQuery({ queryKey: ['loop-failure'], queryFn: apiService.loopFailureHandling })
+}
+export function useLoopEscalationTypes() {
+  return useQuery({ queryKey: ['loop-escalation'], queryFn: apiService.loopEscalationTypes })
+}
+export function useGenerateLoopSteps() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.generateLoopSteps,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['loops'] }) },
+  })
+}
+export function useGenerateLoopStepsForType() {
+  return useMutation({
+    mutationFn: apiService.generateLoopStepsForType,
+  })
+}
 
 export function usePipelines() {
   return useQuery({ queryKey: ['pipelines'], queryFn: apiService.pipelines })

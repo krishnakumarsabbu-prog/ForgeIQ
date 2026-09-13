@@ -13,7 +13,8 @@ from ..domain.models.tool import Tool, ToolRisk
 from ..domain.models.model_config import ModelConfiguration, ModelProvider
 from ..domain.models.harness import Harness, HarnessVersion, HarnessTemplate, HarnessType, HarnessLifecycle
 from ..domain.models.graph import Graph, GraphNode, GraphEdge, GraphNodeType, GraphEdgeType, GraphMetadata, GraphVersion
-from ..domain.models.loop import Loop, LoopType
+from ..domain.models.loop import Loop, LoopType, LoopStep, LoopStepType, BackoffStrategy, FailureHandling, EscalationType
+from ..runtime.loop_engine import LoopEngine
 from ..domain.models.pipeline import Pipeline, PipelineStage, PipelineStageType
 from ..domain.models.execution import Execution, ExecutionEvent, EventType, Approval
 from ..domain.models.policy import Policy, PolicyType, PolicyScope
@@ -619,15 +620,70 @@ def _seed_graphs() -> None:
 
 def _seed_loops() -> None:
     loops_data = [
-        ("test-fix-loop", "Test Fix Loop", LoopType.FIX, "on_test_failure", "Evaluate test failure and generate fix", "Run coding agent to fix failing tests", 3, "all_tests_pass", "escalate", "human_approval"),
-        ("security-remediation-loop", "Security Remediation Loop", LoopType.SECURITY_REMEDIATION, "on_security_finding", "Assess vulnerability severity and exploitability", "Apply remediation via coding agent", 5, "no_critical_findings", "escalate", "security_engineer_approval"),
-        ("deployment-verification-loop", "Deployment Verification Loop", LoopType.DEPLOYMENT_VERIFICATION, "on_deployment", "Run health checks and smoke tests", "Verify deployment health", 3, "all_checks_pass", "rollback", "human_approval"),
-        ("rollback-loop", "Rollback Loop", LoopType.ROLLBACK, "on_verification_failure", "Assess deployment failure scope", "Execute rollback to previous version", 1, "rollback_complete", "escalate", "incident_remediation"),
-        ("incident-remediation-loop", "Incident Remediation Loop", LoopType.INCIDENT_REMEDIATION, "on_incident", "Analyze incident and identify root cause", "Implement and deploy fix", 3, "incident_resolved", "escalate", "human_approval"),
-        ("retry-loop", "Standard Retry Loop", LoopType.RETRY, "on_failure", "Check if error is transient", "Retry the failed operation", 3, "success", "escalate", "human_approval"),
-        ("validation-loop", "Validation Loop", LoopType.VALIDATION, "on_completion", "Validate output against acceptance criteria", "Run validation checks", 2, "validation_passed", "escalate", "human_approval"),
+        ("test-fix-loop", "Test Fix Loop", LoopType.FIX, "on_test_failure",
+         "Evaluate test failure and generate fix", "Run coding agent to fix failing tests",
+         3, "all_tests_pass", "escalate", "human_approval",
+         BackoffStrategy.EXPONENTIAL, 2000, 30000, 5000, 1800,
+         ["iteration_log", "evaluation_result", "exit_reason", "code_diff"]),
+        ("security-remediation-loop", "Security Remediation Loop", LoopType.SECURITY_REMEDIATION,
+         "on_security_finding", "Assess vulnerability severity and exploitability", "Apply remediation via coding agent",
+         5, "no_critical_findings", "escalate", "security_engineer_approval",
+         BackoffStrategy.EXPONENTIAL, 3000, 60000, 8000, 3600,
+         ["iteration_log", "scan_results", "remediation_diff", "exit_reason"]),
+        ("deployment-verification-loop", "Deployment Verification Loop", LoopType.DEPLOYMENT_VERIFICATION,
+         "on_deployment", "Run health checks and smoke tests", "Verify deployment health",
+         3, "all_checks_pass", "rollback", "human_approval",
+         BackoffStrategy.LINEAR, 5000, 30000, 3000, 900,
+         ["iteration_log", "health_check_results", "smoke_test_results", "exit_reason"]),
+        ("rollback-loop", "Rollback Loop", LoopType.ROLLBACK,
+         "on_verification_failure", "Assess deployment failure scope", "Execute rollback to previous version",
+         1, "rollback_complete", "escalate", "incident_remediation",
+         BackoffStrategy.NONE, 0, 0, 2000, 600,
+         ["iteration_log", "rollback_result", "exit_reason"]),
+        ("incident-remediation-loop", "Incident Remediation Loop", LoopType.INCIDENT_REMEDIATION,
+         "on_incident", "Analyze incident and identify root cause", "Implement and deploy fix",
+         3, "incident_resolved", "escalate", "human_approval",
+         BackoffStrategy.EXPONENTIAL, 5000, 60000, 10000, 5400,
+         ["iteration_log", "incident_analysis", "fix_diff", "test_results", "exit_reason"]),
+        ("retry-loop", "Standard Retry Loop", LoopType.RETRY,
+         "on_failure", "Check if error is transient", "Retry the failed operation",
+         3, "success", "escalate", "human_approval",
+         BackoffStrategy.EXPONENTIAL, 1000, 30000, 2000, 1800,
+         ["iteration_log", "evaluation_result", "exit_reason"]),
+        ("validation-loop", "Validation Loop", LoopType.VALIDATION,
+         "on_completion", "Validate output against acceptance criteria", "Run validation checks",
+         2, "validation_passed", "escalate", "human_approval",
+         BackoffStrategy.FIXED, 1000, 5000, 1500, 900,
+         ["iteration_log", "validation_results", "exit_reason"]),
+        ("human-escalation-loop", "Human Escalation Loop", LoopType.HUMAN_ESCALATION,
+         "on_failure", "Escalate to human when automated resolution fails", "Notify and create approval request",
+         1, "approval_decision", "abort", "human_approval",
+         BackoffStrategy.NONE, 0, 0, 500, 3600,
+         ["iteration_log", "approval_request", "decision_record"]),
+        ("continuous-improvement-loop", "Continuous Improvement Loop", LoopType.CONTINUOUS_IMPROVEMENT,
+         "on_schedule", "Analyze quality and performance metrics", "Apply identified improvements",
+         10, "no_improvement_possible", "continue", "notify_only",
+         BackoffStrategy.LINEAR, 10000, 60000, 5000, 7200,
+         ["iteration_log", "metrics_snapshot", "improvement_diff", "exit_reason"]),
     ]
-    for name, display, ltype, trigger, evaluation, action, max_iter, exit_cond, failure, escalation in loops_data:
+
+    for (name, display, ltype, trigger, evaluation, action, max_iter,
+         exit_cond, failure, escalation, backoff, backoff_init, backoff_max,
+         cost_limit, time_limit, evidence_reqs) in loops_data:
+        steps_template = LoopEngine.generate_steps_for_type(ltype)
+        steps = [
+            LoopStep(
+                step_type=LoopStepType(s["step_type"]),
+                label=s["label"],
+                description=s["description"],
+                position_x=s["position_x"],
+                position_y=s["position_y"],
+            )
+            for s in steps_template
+        ]
+        for i in range(len(steps) - 1):
+            steps[i].next_step_id = steps[i + 1].id
+
         l = Loop(
             tenant_id=TENANT_ID,
             id=gen_id("loop_"),
@@ -638,9 +694,17 @@ def _seed_loops() -> None:
             evaluation=evaluation,
             action=action,
             max_iterations=max_iter,
+            backoff_strategy=backoff,
+            backoff_initial_ms=backoff_init,
+            backoff_max_ms=backoff_max,
+            cost_limit_cents=cost_limit,
+            time_limit_seconds=time_limit,
+            retry_policy={"retry_on": "transient", "max_retries": max_iter},
             exit_condition=exit_cond,
             failure_handling=failure,
             escalation=escalation,
+            steps=steps,
+            evidence_requirements=evidence_reqs,
             version="v1",
             published=True,
             is_default=True,

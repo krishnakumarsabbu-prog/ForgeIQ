@@ -6,7 +6,7 @@ import {
   ScrollText, Shield, FileLock2, Building2, Users, Settings,
   Package, Rocket, Server, ChevronDown, ChevronRight, ChevronLeft,
   Boxes, Gauge, Lock, FileCheck, DollarSign, Search, Plus, Bell,
-  HelpCircle, Check, UserCog,
+  HelpCircle, Check, UserCog, Repeat,
 } from 'lucide-react'
 import { CommandPalette } from '../ui/CommandPalette'
 import { useDashboard, useTenants, useExecutions } from '../../hooks/useQueries'
@@ -52,6 +52,7 @@ const navSections: NavSection[] = [
       { to: '/harness-builder', label: 'Harness Builder', icon: Network },
       { to: '/graph-engineering', label: 'Graph Engineering', icon: GitBranch },
       { to: '/loop-engineering', label: 'Loop Engineering', icon: RefreshCw },
+      { to: '/loop-builder', label: 'Loop Builder', icon: Repeat },
       { to: '/harness-templates', label: 'Harness Templates', icon: FileLock2 },
       { to: '/harness-versions', label: 'Harness Versions', icon: Layers },
     ],

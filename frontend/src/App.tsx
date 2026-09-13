@@ -16,6 +16,7 @@ import HarnessDetail from './pages/HarnessDetail'
 import HarnessBuilderPage from './pages/HarnessBuilderPage'
 import GraphEngineeringPage from './pages/GraphEngineeringPage'
 import LoopEngineeringPage from './pages/LoopEngineeringPage'
+import LoopBuilderPage from './pages/LoopBuilderPage'
 import HarnessTemplatesPage from './pages/HarnessTemplatesPage'
 import PipelinesPage from './pages/PipelinesPage'
 import PipelineDetail from './pages/PipelineDetail'
@@ -61,6 +62,8 @@ export default function App() {
         <Route path="/harness-builder" element={<HarnessBuilderPage />} />
         <Route path="/graph-engineering" element={<GraphEngineeringPage />} />
         <Route path="/loop-engineering" element={<LoopEngineeringPage />} />
+        <Route path="/loop-builder" element={<LoopBuilderPage />} />
+        <Route path="/loop-builder/:id" element={<LoopBuilderPage />} />
         <Route path="/harness-templates" element={<HarnessTemplatesPage />} />
         <Route path="/pipelines" element={<PipelinesPage />} />
         <Route path="/pipelines/:id" element={<PipelineDetail />} />

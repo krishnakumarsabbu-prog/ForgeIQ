@@ -351,6 +351,31 @@ export interface GraphSerialization {
   terminal_node_ids: string[]
 }
 
+export interface LoopStep {
+  id: string
+  step_type: string
+  label: string
+  description: string
+  config: Record<string, unknown>
+  next_step_id?: string
+  branch_true_id?: string
+  branch_false_id?: string
+  position_x: number
+  position_y: number
+}
+
+export interface LoopIterationRecord {
+  iteration: number
+  attempt: number
+  trigger: string
+  evaluation_result: Record<string, unknown>
+  decision: string
+  action: string
+  action_result: Record<string, unknown>
+  exit_reason: string
+  timestamp: string
+}
+
 export interface Loop {
   id: string
   name: string
@@ -361,13 +386,22 @@ export interface Loop {
   evaluation: string
   action: string
   max_iterations: number
+  backoff_strategy: string
+  backoff_initial_ms: number
+  backoff_max_ms: number
+  cost_limit_cents: number
+  time_limit_seconds: number
+  retry_policy: Record<string, unknown>
   exit_condition: string
   failure_handling: string
   escalation: string
   harness_id?: string
+  is_default: boolean
+  steps: LoopStep[]
+  evidence_requirements: string[]
+  execution_history: LoopIterationRecord[]
   version: string
   published: boolean
-  is_default: boolean
   created_at: string
 }
 
