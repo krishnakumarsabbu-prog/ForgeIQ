@@ -119,20 +119,55 @@ class IncidentRuntime:
 
         await asyncio.sleep(0.15)
 
-        category = random.choice(ROOT_CAUSE_CATEGORIES)
+        # Determine root cause from real context
+        if recent_deployments:
+            latest_dep = sorted(recent_deployments, key=lambda x: x.created_at, reverse=True)[0]
+            if latest_dep.status in ("failed", "rollback_failed", "postcheck_failed"):
+                category = RootCauseCategory.DEPLOYMENT_FAILURE
+            elif latest_dep.status == "rolled_back":
+                category = RootCauseCategory.CONFIGURATION_ERROR
+            else:
+                category = RootCauseCategory.CODE_DEFECT
+        elif es and es.open_vulnerabilities > 0:
+            category = RootCauseCategory.SECURITY
+        elif es and hasattr(es, "dependencies") and isinstance(es.dependencies, list):
+            dep_issues = [d for d in es.dependencies if isinstance(d, dict) and d.get("vulnerabilities")]
+            if dep_issues:
+                category = RootCauseCategory.DEPENDENCY_FAILURE
+            elif es.health_score < 50:
+                category = RootCauseCategory.RESOURCE_EXHAUSTION
+            else:
+                category = RootCauseCategory.CODE_DEFECT
+        else:
+            category = RootCauseCategory.CODE_DEFECT
+
+        # Derive component from symptoms
+        component = incident.component or (incident.symptoms[0].component if incident.symptoms else "unknown")
+
+        # Derive contributing factors from real context
+        contributing_factors: list[str] = []
+        if recent_deployments:
+            contributing_factors.append(f"Recent deployment: {recent_deployments[0].version} ({recent_deployments[0].status})")
+        if es and es.open_vulnerabilities > 0:
+            contributing_factors.append(f"{es.open_vulnerabilities} open vulnerabilities in engineering state")
+        if es and es.health_score < 70:
+            contributing_factors.append(f"Low health score: {es.health_score:.0f}")
+        if not contributing_factors:
+            contributing_factors.append("No specific contributing factors identified from available context")
+
+        # Derive confidence from data quality
+        data_points = len(incident.symptoms) + len(recent_deployments) + (1 if es else 0)
+        confidence = round(min(0.50 + data_points * 0.08, 0.95), 2)
+
         root_cause = RootCauseFinding(
             category=category.value,
-            component=incident.component or "payment-service",
-            description=ROOT_CAUSE_DESCRIPTIONS.get(category, "Root cause identified through analysis."),
-            commit_sha=gen_id("commit_")[:12],
-            file_path="src/services/payment/PaymentProcessor.py" if category == RootCauseCategory.CODE_DEFECT else "",
-            line_range="142-158" if category == RootCauseCategory.CODE_DEFECT else "",
-            confidence=round(random.uniform(0.78, 0.97), 2),
-            contributing_factors=[
-                "High traffic volume at time of incident",
-                "Recent deployment 2 hours before symptoms appeared",
-                "Missing integration test coverage for edge case",
-            ],
+            component=component,
+            description=ROOT_CAUSE_DESCRIPTIONS.get(category, "Root cause identified through analysis of available engineering context."),
+            commit_sha=es.commit[:12] if es and hasattr(es, "commit") and es.commit else "",
+            file_path="",
+            line_range="",
+            confidence=confidence,
+            contributing_factors=contributing_factors,
             evidence_refs=[],
         )
 
@@ -320,7 +355,11 @@ class IncidentRuntime:
 
             await asyncio.sleep(0.08)
 
-            step_success = random.random() > 0.05
+            # Step success is determined by whether the required agent/tool is available
+            agent = store.agents.get(step.agent_id) if hasattr(store, "agents") else None
+            step_success = agent is not None and getattr(agent, "active", True) if agent else False
+            if not agent:
+                step_success = True  # If no agent specified, mark as completed (configuration step)
             step.status = "completed" if step_success else "failed"
             step.completed_at = utc_now().isoformat()
             step.result = {

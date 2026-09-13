@@ -158,13 +158,22 @@ class DeploymentRuntime:
             elif name == "artifact_exists":
                 passed = bool(deployment.artifact_id) and store.artifacts.get(deployment.artifact_id) is not None
             elif name == "policy_compliant":
-                passed = True
-            elif name == "no_blocking_approvals":
+                from .policy_engine import PolicyEngine
+                policy_engine = PolicyEngine(self.tenant_id)
+                pol_ok, _ = policy_engine.evaluate(
+                    scope="deployment",
+                    target_id=deployment.environment_id,
+                    context={"deployment": deployment.model_dump()},
+                    execution_id=execution_id,
+                )
+                passed = pol_ok
+            elif name == "capacity_available":
                 pending = [a for a in store.approvals.all(self.tenant_id)
                            if a.execution_id == execution_id and a.status == "pending"]
                 passed = len(pending) == 0
-            else:
-                passed = True
+            elif name == "capacity_available":
+                env = store.environments.get(deployment.environment_id)
+                passed = env is not None and getattr(env, "active", True)
 
             result = PrecheckResult(
                 name=name,
@@ -325,8 +334,13 @@ class DeploymentRuntime:
 
         await asyncio.sleep(0.1)
 
-        rollback_success = random.random() > 0.02
-        previous_version = deployment.metadata.get("previous_version", "previous")
+        # Rollback success depends on whether a previous deployment exists
+        all_deployments = [d for d in store.deployments.all(self.tenant_id)
+                           if d.application_id == deployment.application_id
+                           and d.id != deployment_id
+                           and d.status == "completed"]
+        rollback_success = len(all_deployments) > 0
+        previous_version = all_deployments[0].version if all_deployments else deployment.metadata.get("previous_version", "unknown")
 
         rollback_result = RollbackResult(
             status="success" if rollback_success else "failed",

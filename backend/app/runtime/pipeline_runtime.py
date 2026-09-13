@@ -380,6 +380,26 @@ class PipelineRuntime:
                             data={"approval_id": approval.id, "stage_id": s.id},
                         )
                         sr.result = {"status": "awaiting_approval", "approval_id": approval.id}
+                        # Wait for approval to be resolved before continuing
+                        approval_resolved = False
+                        for _ in range(self.MAX_RETRIES + 1):
+                            await asyncio.sleep(2)
+                            refetched = store.approvals.get(approval.id)
+                            if refetched and refetched.status != "pending":
+                                approval_resolved = True
+                                if refetched.status == "approved":
+                                    sr.state = StageState.SUCCEEDED
+                                    sr.result = {"status": "approved", "approval_id": approval.id}
+                                else:
+                                    sr.state = StageState.FAILED
+                                    sr.error = f"Approval rejected: {refetched.status}"
+                                    sr.result = {"status": "rejected", "approval_id": approval.id}
+                                break
+                        if not approval_resolved:
+                            sr.state = StageState.BLOCKED
+                            sr.error = "Approval timed out"
+                            sr.result = {"status": "approval_timeout", "approval_id": approval.id}
+                        sr.completed_at = utc_now().isoformat()
                         completed_count += 1
 
                 i = j

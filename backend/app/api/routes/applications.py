@@ -255,7 +255,7 @@ def _build_pipeline_from_plan(plan) -> str:
 
 
 @router.post("/engineering-plan/{plan_id}/execute")
-def execute_engineering_plan(plan_id: str):
+async def execute_engineering_plan(plan_id: str):
     plan = store.engineering_plans.get(plan_id)
     if not plan:
         raise HTTPException(404, "Engineering plan not found")

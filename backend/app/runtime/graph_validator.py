@@ -19,6 +19,16 @@ class GraphValidator:
     ]
 
     def validate(self, graph: Graph) -> dict:
+        if graph is None:
+            return {
+                "valid": False,
+                "errors": [{"severity": "error", "code": "NULL_GRAPH", "message": "Graph is None"}],
+                "warnings": [],
+                "diagnostics": [{"severity": "error", "code": "NULL_GRAPH", "message": "Graph is None"}],
+                "node_count": 0,
+                "edge_count": 0,
+                "rules_checked": [],
+            }
         diagnostics: list[dict] = []
         node_ids = {n.id for n in graph.nodes}
         node_map = {n.id: n for n in graph.nodes}
@@ -88,26 +98,34 @@ class GraphValidator:
         WHITE, GRAY, BLACK = 0, 1, 2
         color = {nid: WHITE for nid in node_ids}
 
-        def dfs(u: str, path: list[str]) -> bool:
-            color[u] = GRAY
-            path.append(u)
-            for v in adj.get(u, []):
-                if v not in color:
-                    continue
-                if color[v] == GRAY:
-                    cycle_nodes = [node_map.get(n, n).label if n in node_map else n for n in path[path.index(v):]]
-                    self._add(diagnostics, "error", "CIRCULAR_DEPENDENCY",
-                              f"Circular dependency: {' -> '.join(cycle_nodes)}", node_id=v)
-                    return True
-                if color[v] == WHITE and dfs(v, path):
-                    return True
-            path.pop()
-            color[u] = BLACK
-            return False
-
-        for nid in node_ids:
-            if color[nid] == WHITE:
-                dfs(nid, [])
+        for start_node in node_ids:
+            if color[start_node] != WHITE:
+                continue
+            stack: list[tuple[str, list[str]]] = [(start_node, [start_node])]
+            while stack:
+                u, path = stack[-1]
+                if color[u] == WHITE:
+                    color[u] = GRAY
+                neighbors = adj.get(u, [])
+                advanced = False
+                for v in neighbors:
+                    if v not in color:
+                        continue
+                    if color[v] == GRAY:
+                        cycle_nodes = [node_map.get(n, n).label if n in node_map else n for n in path[path.index(v):]]
+                        self._add(diagnostics, "error", "CIRCULAR_DEPENDENCY",
+                                  f"Circular dependency: {' -> '.join(cycle_nodes)}", node_id=v)
+                        color[u] = BLACK
+                        stack.pop()
+                        advanced = True
+                        break
+                    if color[v] == WHITE:
+                        stack.append((v, path + [v]))
+                        advanced = True
+                        break
+                if not advanced:
+                    color[u] = BLACK
+                    stack.pop()
 
     def _check_unreachable(self, graph: Graph, node_ids: set, node_map: dict, adj: dict, diagnostics: list) -> None:
         if not graph.nodes:

@@ -364,7 +364,15 @@ async def stream_all_events():
     async def generator():
         async for chunk in event_bus.stream(execution_id=None, include_history=True):
             yield chunk
-    return StreamingResponse(generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.get("/api/events")

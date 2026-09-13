@@ -140,7 +140,15 @@ async def stream_execution(execution_id: str):
             async for chunk in event_bus.stream(execution_id=execution_id, include_history=False):
                 yield chunk
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/{execution_id}/approvals")

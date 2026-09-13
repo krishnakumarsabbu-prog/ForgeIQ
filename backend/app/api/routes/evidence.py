@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Any
+from pydantic import BaseModel
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -12,8 +13,47 @@ router = APIRouter(prefix="/evidence", tags=["evidence"])
 TENANT_ID = "tenant_forgeiq"
 
 
-def _engine() -> EvidenceEngine:
-    return EvidenceEngine(TENANT_ID)
+def _engine(tenant_id: str = TENANT_ID) -> EvidenceEngine:
+    return EvidenceEngine(tenant_id)
+
+
+class EvidenceCreate(BaseModel):
+    execution_id: str
+    evidence_type: str = "action"
+    application_id: Optional[str] = None
+    requirement_id: Optional[str] = None
+    pipeline_id: Optional[str] = None
+    pipeline_version: Optional[str] = None
+    harness_id: Optional[str] = None
+    harness_version: Optional[str] = None
+    graph_id: Optional[str] = None
+    graph_version: Optional[str] = None
+    loop_id: Optional[str] = None
+    loop_iteration: Optional[int] = None
+    node_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    agent_version: Optional[str] = None
+    model_used: Optional[str] = None
+    model_provider: Optional[str] = None
+    context_reference: Optional[str] = None
+    tool_id: Optional[str] = None
+    tool_operation: Optional[str] = None
+    inputs: Optional[Any] = None
+    outputs: Optional[Any] = None
+    code_changes: Optional[Any] = None
+    test_results: Optional[Any] = None
+    security_results: Optional[Any] = None
+    build_results: Optional[Any] = None
+    release_results: Optional[Any] = None
+    approvals: Optional[Any] = None
+    policies_applied: Optional[Any] = None
+    policy_decisions: Optional[Any] = None
+    deployment: Optional[Any] = None
+    verification: Optional[Any] = None
+    status: str = "success"
+    environment: str = ""
+    summary: str = ""
+    tenant_id: str = TENANT_ID
 
 
 @router.get("")
@@ -64,89 +104,91 @@ def evidence_types():
 
 
 @router.get("/{evidence_id}")
-def get_evidence(evidence_id: str):
+def get_evidence(evidence_id: str, tenant_id: str = TENANT_ID):
     e = store.evidence.get(evidence_id)
     if not e:
+        raise HTTPException(404, "Evidence not found")
+    if e.tenant_id != tenant_id:
         raise HTTPException(404, "Evidence not found")
     return e
 
 
 @router.get("/execution/{execution_id}")
-def get_execution_evidence(execution_id: str):
-    engine = _engine()
+def get_execution_evidence(execution_id: str, tenant_id: str = TENANT_ID):
+    engine = _engine(tenant_id)
     return engine.get_timeline(execution_id)
 
 
 @router.get("/execution/{execution_id}/chain-verify")
-def verify_evidence_chain(execution_id: str):
-    return _engine().verify_chain(execution_id)
+def verify_evidence_chain(execution_id: str, tenant_id: str = TENANT_ID):
+    return _engine(tenant_id).verify_chain(execution_id)
 
 
 @router.get("/application/{application_id}")
-def get_application_evidence(application_id: str):
+def get_application_evidence(application_id: str, tenant_id: str = TENANT_ID):
     return [
-        e for e in store.evidence.all() if e.application_id == application_id
+        e for e in store.evidence.all(tenant_id) if e.application_id == application_id
     ]
 
 
 @router.post("/")
-def create_evidence(body: dict):
+def create_evidence(body: EvidenceCreate):
     """Create an evidence record. Once created, it cannot be modified or deleted."""
     from ...domain.models.evidence import EvidenceType, EvidenceStatus
 
     try:
-        etype = EvidenceType(body.get("evidence_type", "action"))
+        etype = EvidenceType(body.evidence_type)
     except ValueError:
-        raise HTTPException(400, f"Invalid evidence_type")
+        raise HTTPException(400, f"Invalid evidence_type: {body.evidence_type}")
 
     try:
-        status = EvidenceStatus(body.get("status", "success"))
+        status = EvidenceStatus(body.status)
     except ValueError:
-        raise HTTPException(400, f"Invalid status")
+        raise HTTPException(400, f"Invalid status: {body.status}")
 
-    engine = _engine()
+    engine = _engine(body.tenant_id)
     evidence = engine.create_evidence(
-        execution_id=body["execution_id"],
+        execution_id=body.execution_id,
         evidence_type=etype,
-        application_id=body.get("application_id"),
-        requirement_id=body.get("requirement_id"),
-        pipeline_id=body.get("pipeline_id"),
-        pipeline_version=body.get("pipeline_version"),
-        harness_id=body.get("harness_id"),
-        harness_version=body.get("harness_version"),
-        graph_id=body.get("graph_id"),
-        graph_version=body.get("graph_version"),
-        loop_id=body.get("loop_id"),
-        loop_iteration=body.get("loop_iteration"),
-        node_id=body.get("node_id"),
-        agent_id=body.get("agent_id"),
-        agent_version=body.get("agent_version"),
-        model_used=body.get("model_used"),
-        model_provider=body.get("model_provider"),
-        context_reference=body.get("context_reference"),
-        tool_id=body.get("tool_id"),
-        tool_operation=body.get("tool_operation"),
-        inputs=body.get("inputs"),
-        outputs=body.get("outputs"),
-        code_changes=body.get("code_changes"),
-        test_results=body.get("test_results"),
-        security_results=body.get("security_results"),
-        build_results=body.get("build_results"),
-        release_results=body.get("release_results"),
-        approvals=body.get("approvals"),
-        policies_applied=body.get("policies_applied"),
-        policy_decisions=body.get("policy_decisions"),
-        deployment=body.get("deployment"),
-        verification=body.get("verification"),
+        application_id=body.application_id,
+        requirement_id=body.requirement_id,
+        pipeline_id=body.pipeline_id,
+        pipeline_version=body.pipeline_version,
+        harness_id=body.harness_id,
+        harness_version=body.harness_version,
+        graph_id=body.graph_id,
+        graph_version=body.graph_version,
+        loop_id=body.loop_id,
+        loop_iteration=body.loop_iteration,
+        node_id=body.node_id,
+        agent_id=body.agent_id,
+        agent_version=body.agent_version,
+        model_used=body.model_used,
+        model_provider=body.model_provider,
+        context_reference=body.context_reference,
+        tool_id=body.tool_id,
+        tool_operation=body.tool_operation,
+        inputs=body.inputs,
+        outputs=body.outputs,
+        code_changes=body.code_changes,
+        test_results=body.test_results,
+        security_results=body.security_results,
+        build_results=body.build_results,
+        release_results=body.release_results,
+        approvals=body.approvals,
+        policies_applied=body.policies_applied,
+        policy_decisions=body.policy_decisions,
+        deployment=body.deployment,
+        verification=body.verification,
         status=status,
-        environment=body.get("environment", ""),
-        summary=body.get("summary", ""),
+        environment=body.environment,
+        summary=body.summary,
     )
     return evidence
 
 
 @router.put("/{evidence_id}")
-def update_evidence(evidence_id: str, body: dict):
+def update_evidence(evidence_id: str):
     """Evidence is immutable. Updates are not allowed."""
     e = store.evidence.get(evidence_id)
     if not e:

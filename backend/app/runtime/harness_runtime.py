@@ -357,7 +357,21 @@ class HarnessRuntime:
 
         # ── Time check ──────────────────────────────────────────────────
         if execution and execution.started_at:
-            result.time_warning = None
+            from datetime import datetime, timezone
+            try:
+                started = datetime.fromisoformat(execution.started_at)
+                if started.tzinfo is None:
+                    started = started.replace(tzinfo=timezone.utc)
+                elapsed = (datetime.now(timezone.utc) - started).total_seconds()
+                if elapsed > resolved.time_limit_seconds:
+                    result.time_warning = (
+                        f"Execution has exceeded time limit "
+                        f"({resolved.time_limit_seconds}s, elapsed {elapsed:.0f}s)"
+                    )
+                else:
+                    result.time_warning = None
+            except (ValueError, TypeError):
+                result.time_warning = None
 
         # ── Approval requirement ────────────────────────────────────────
         if self.policy_engine.check_approval_required(harness.id, environment):

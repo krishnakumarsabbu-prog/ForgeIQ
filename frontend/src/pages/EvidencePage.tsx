@@ -285,27 +285,31 @@ export default function EvidencePage() {
 
       {/* Filters */}
       <div className="border-b border-slate-200 bg-white">
-        <button
-          onClick={() => setShowFilters(!showFilters)}
+        <div
           className="flex items-center gap-2 px-6 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 w-full"
         >
-          <Filter className="h-3.5 w-3.5" />
-          Filters
-          {activeFilterCount > 0 && (
-            <span className="fi-badge bg-forgeiq-50 text-forgeiq-700 border border-forgeiq-200 text-[10px] py-0.5">
-              {activeFilterCount} active
-            </span>
-          )}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="flex items-center gap-2"
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="fi-badge bg-forgeiq-50 text-forgeiq-700 border border-forgeiq-200 text-[10px] py-0.5">
+                {activeFilterCount} active
+              </span>
+            )}
+            <ChevronDown className={`h-3.5 w-3.5 ${showFilters ? 'rotate-180' : ''} transition-transform`} />
+          </button>
           {activeFilterCount > 0 && (
             <button
-              onClick={(e) => { e.stopPropagation(); clearFilters() }}
+              onClick={clearFilters}
               className="text-slate-400 hover:text-red-500 ml-auto"
             >
               Clear all
             </button>
           )}
-          <ChevronDown className={`h-3.5 w-3.5 ml-auto ${showFilters ? 'rotate-180' : ''} transition-transform`} />
-        </button>
+        </div>
         {showFilters && (
           <div className="px-6 pb-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
             <FilterSelect
@@ -681,10 +685,10 @@ function EvidenceDetailDrawer({ evidence: ev, onClose, navigate, appMap, agentMa
                 {ev.approvals.map((a, i) => (
                   <div key={i} className="text-xs bg-amber-50 border border-amber-200 rounded p-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-amber-800">{a.approver || 'Unknown'}</span>
-                      <StatusBadge status={String(a.decision || '').toUpperCase()} />
+                      <span className="font-medium text-amber-800">{String(a.approver ?? 'Unknown')}</span>
+                      <StatusBadge status={String(a.decision ?? '').toUpperCase()} />
                     </div>
-                    {a.reason && <p className="text-amber-700 mt-0.5">{a.reason}</p>}
+                    {Boolean(a.reason) && <p className="text-amber-700 mt-0.5">{String(a.reason)}</p>}
                   </div>
                 ))}
               </div>

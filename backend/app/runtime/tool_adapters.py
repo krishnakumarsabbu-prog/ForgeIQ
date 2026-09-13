@@ -144,7 +144,7 @@ class ToolAdapter:
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env={**os.environ, **(env or {})},
+                env={**(env or {})},
                 cwd=cwd,
             )
             stdout_b, stderr_b = await asyncio.wait_for(

@@ -93,21 +93,29 @@ class AgentRuntime:
             if key not in inputs:
                 return False, f"Missing required input: {key}"
 
-        # 3. Skills — referenced skill IDs must exist
+        # 3. Skills — referenced skill IDs must exist and belong to tenant
         for sid in contract.skill_ids:
-            if not store.skills.get(sid):
+            skill = store.skills.get(sid)
+            if not skill:
                 return False, f"Skill '{sid}' referenced in contract does not exist."
+            if skill.tenant_id != self.tenant_id:
+                return False, f"Skill '{sid}' does not belong to this tenant."
 
-        # 4. Tools — referenced tool IDs must exist
+        # 4. Tools — referenced tool IDs must exist and belong to tenant
         for tid in contract.tool_ids:
-            if not store.tools.get(tid):
+            tool = store.tools.get(tid)
+            if not tool:
                 return False, f"Tool '{tid}' referenced in contract does not exist."
+            if tool.tenant_id != self.tenant_id:
+                return False, f"Tool '{tid}' does not belong to this tenant."
 
         # 5. Model — must exist and be active
         if contract.model_config_id:
             model = store.models.get(contract.model_config_id)
             if model is None:
                 return False, f"Model '{contract.model_config_id}' not found."
+            if model.tenant_id != self.tenant_id:
+                return False, f"Model '{contract.model_config_id}' does not belong to this tenant."
             if not model.active:
                 return False, f"Model '{model.display_name or model.model}' is not active."
 

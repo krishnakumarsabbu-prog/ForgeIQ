@@ -30,7 +30,7 @@ def list_imports(tenant_id: str = "tenant_forgeiq"):
 
 
 @router.get("/imports/{import_id}")
-def get_import(import_id: str):
+def get_import(import_id: str, tenant_id: str = "tenant_forgeiq"):
     engine = BrownfieldDiscoveryEngine("tenant_forgeiq")
     imp = engine.get_import(import_id)
     if not imp:
@@ -39,7 +39,7 @@ def get_import(import_id: str):
 
 
 @router.post("/imports")
-def create_import(body: ImportRequest):
+async def create_import(body: ImportRequest):
     config = BrownfieldImportConfig(
         repository_url=body.repository_url,
         branch=body.branch,
@@ -57,8 +57,8 @@ def create_import(body: ImportRequest):
 
 
 @router.get("/imports/{import_id}/phases")
-def get_import_phases(import_id: str):
-    engine = BrownfieldDiscoveryEngine("tenant_forgeiq")
+def get_import_phases(import_id: str, tenant_id: str = "tenant_forgeiq"):
+    engine = BrownfieldDiscoveryEngine(tenant_id)
     imp = engine.get_import(import_id)
     if not imp:
         raise HTTPException(404, "Brownfield import not found")
@@ -66,8 +66,8 @@ def get_import_phases(import_id: str):
 
 
 @router.get("/imports/{import_id}/semantic-model")
-def get_import_semantic_model(import_id: str):
-    engine = BrownfieldDiscoveryEngine("tenant_forgeiq")
+def get_import_semantic_model(import_id: str, tenant_id: str = "tenant_forgeiq"):
+    engine = BrownfieldDiscoveryEngine(tenant_id)
     imp = engine.get_import(import_id)
     if not imp:
         raise HTTPException(404, "Brownfield import not found")
@@ -82,8 +82,8 @@ def get_import_semantic_model(import_id: str):
 
 
 @router.get("/imports/{import_id}/documentation")
-def get_import_documentation(import_id: str):
-    engine = BrownfieldDiscoveryEngine("tenant_forgeiq")
+def get_import_documentation(import_id: str, tenant_id: str = "tenant_forgeiq"):
+    engine = BrownfieldDiscoveryEngine(tenant_id)
     imp = engine.get_import(import_id)
     if not imp:
         raise HTTPException(404, "Brownfield import not found")
@@ -91,8 +91,8 @@ def get_import_documentation(import_id: str):
 
 
 @router.get("/imports/{import_id}/recommendations")
-def get_import_recommendations(import_id: str):
-    engine = BrownfieldDiscoveryEngine("tenant_forgeiq")
+def get_import_recommendations(import_id: str, tenant_id: str = "tenant_forgeiq"):
+    engine = BrownfieldDiscoveryEngine(tenant_id)
     imp = engine.get_import(import_id)
     if not imp:
         raise HTTPException(404, "Brownfield import not found")

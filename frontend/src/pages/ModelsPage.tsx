@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
-import { useModels, useModelProviderStatus, useModelUsageStats, useRouteModel } from '../hooks/useQueries'
-import { PageHeader, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
+import { useModels, useModelProviderStatus, useModelUsageStats, useRouteModel, useCreateModel } from '../hooks/useQueries'
+import { PageHeader, LoadingSpinner, EmptyState, ErrorBanner } from '../components/ui/PageHeader'
 import { FilterBar } from '../components/ui/FilterBar'
 import { SideDrawer, DetailsPanel } from '../components/ui/SideDrawer'
 import type { ModelConfiguration, ModelProviderStatus, ModelUsageStats, RoutingDecision } from '../types'
-import { Cpu, Plus, Lock, Zap, ArrowRight, Shield, Building2, Activity, Route, ChevronDown, ChevronUp } from 'lucide-react'
+import { Cpu, Plus, Lock, Zap, ArrowRight, Shield, Building2, Activity, Route, ChevronDown, ChevronUp, X } from 'lucide-react'
 
 const providerColors: Record<string, string> = {
   OpenAI: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
@@ -27,10 +27,19 @@ const tierColors: Record<string, string> = {
 const providers = ['All', 'OpenAI', 'Anthropic', 'Google', 'Azure', 'Enterprise', 'Local']
 
 export default function ModelsPage() {
-  const { data, isLoading } = useModels()
+  const { data, isLoading, isError, error } = useModels()
   const { data: providerStatus } = useModelProviderStatus()
   const { data: usageStats } = useModelUsageStats()
   const routeMutation = useRouteModel()
+  const createModelMutation = useCreateModel()
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [newModel, setNewModel] = useState({
+    display_name: '', provider: 'OpenAI', model: '', tier: 'balanced',
+    context_size: 128000, token_limit: 128000, latency_ms: 500,
+    cost_per_1k_input_cents: 1, cost_per_1k_output_cents: 3,
+    temperature: 0.7, max_concurrent: 5, availability: 99.9,
+    security_approved: false, enterprise_approved: false, active: true,
+  })
 
   const [search, setSearch] = useState('')
   const [activeProvider, setActiveProvider] = useState('All')
@@ -91,7 +100,7 @@ export default function ModelsPage() {
               <Activity className="h-4 w-4" /> Usage Stats
               {showStats ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
-            <button className="fi-button-primary">
+            <button onClick={() => setShowCreateForm(true)} className="fi-button-primary">
               <Plus className="h-4 w-4" /> New Model
             </button>
           </div>
@@ -217,6 +226,8 @@ export default function ModelsPage() {
         <div className="fi-card">
           {isLoading ? (
             <LoadingSpinner />
+          ) : isError ? (
+            <ErrorBanner message={`Failed to load models: ${error?.message || 'Unknown error'}`} />
           ) : filtered.length === 0 ? (
             <EmptyState message="No models found matching your filters" />
           ) : (
@@ -319,6 +330,71 @@ export default function ModelsPage() {
         title={selected?.display_name || ''}
         subtitle={selected ? `${selected.provider} · ${selected.model}` : ''}
       >
+
+      <SideDrawer
+        open={showCreateForm}
+        onClose={() => setShowCreateForm(false)}
+        title="Create New Model"
+        subtitle="Configure a new model for the tenant"
+      >
+        {showCreateForm && (
+          <div className="p-4 space-y-3">
+            <CreateModelField label="Display Name" value={newModel.display_name} onChange={(v) => setNewModel({ ...newModel, display_name: v })} placeholder="e.g. GPT-4 Turbo" />
+            <div>
+              <label className="text-[11px] font-medium text-slate-500 uppercase">Provider</label>
+              <select value={newModel.provider} onChange={(e) => setNewModel({ ...newModel, provider: e.target.value })} className="fi-input w-full mt-1">
+                {['OpenAI', 'Anthropic', 'Google', 'Azure', 'Enterprise', 'Local'].map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <CreateModelField label="Model String" value={newModel.model} onChange={(v) => setNewModel({ ...newModel, model: v })} placeholder="e.g. gpt-4-turbo" mono />
+            <div>
+              <label className="text-[11px] font-medium text-slate-500 uppercase">Tier</label>
+              <select value={newModel.tier} onChange={(e) => setNewModel({ ...newModel, tier: e.target.value })} className="fi-input w-full mt-1">
+                {['high_quality', 'balanced', 'low_cost', 'security_approved', 'enterprise_approved', 'local'].map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <CreateModelField label="Context Size" value={String(newModel.context_size)} onChange={(v) => setNewModel({ ...newModel, context_size: parseInt(v) || 0 })} />
+              <CreateModelField label="Token Limit" value={String(newModel.token_limit)} onChange={(v) => setNewModel({ ...newModel, token_limit: parseInt(v) || 0 })} />
+              <CreateModelField label="Latency (ms)" value={String(newModel.latency_ms)} onChange={(v) => setNewModel({ ...newModel, latency_ms: parseInt(v) || 0 })} />
+              <CreateModelField label="Max Concurrent" value={String(newModel.max_concurrent)} onChange={(v) => setNewModel({ ...newModel, max_concurrent: parseInt(v) || 1 })} />
+              <CreateModelField label="Input Cost (cents/1k)" value={String(newModel.cost_per_1k_input_cents)} onChange={(v) => setNewModel({ ...newModel, cost_per_1k_input_cents: parseFloat(v) || 0 })} />
+              <CreateModelField label="Output Cost (cents/1k)" value={String(newModel.cost_per_1k_output_cents)} onChange={(v) => setNewModel({ ...newModel, cost_per_1k_output_cents: parseFloat(v) || 0 })} />
+            </div>
+            <CreateModelField label="Temperature" value={String(newModel.temperature)} onChange={(v) => setNewModel({ ...newModel, temperature: parseFloat(v) || 0 })} />
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
+                <input type="checkbox" checked={newModel.active} onChange={(e) => setNewModel({ ...newModel, active: e.target.checked })} className="rounded border-slate-300" />
+                Active
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
+                <input type="checkbox" checked={newModel.security_approved} onChange={(e) => setNewModel({ ...newModel, security_approved: e.target.checked })} className="rounded border-slate-300" />
+                Security Approved
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
+                <input type="checkbox" checked={newModel.enterprise_approved} onChange={(e) => setNewModel({ ...newModel, enterprise_approved: e.target.checked })} className="rounded border-slate-300" />
+                Enterprise Approved
+              </label>
+            </div>
+            {createModelMutation.isError && (
+              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-2">
+                Failed to create model: {createModelMutation.error?.message || 'Unknown error'}
+              </div>
+            )}
+            <button
+              onClick={() => {
+                createModelMutation.mutate(newModel, {
+                  onSuccess: () => { setShowCreateForm(false); setNewModel({ ...newModel, display_name: '', model: '' }) },
+                })
+              }}
+              disabled={!newModel.display_name || !newModel.model || createModelMutation.isPending}
+              className="fi-button-primary w-full"
+            >
+              {createModelMutation.isPending ? 'Creating...' : 'Create Model'}
+            </button>
+          </div>
+        )}
+      </SideDrawer>
         {selected && (
           <div className="p-4 space-y-4">
             <DetailsPanel
@@ -500,6 +576,26 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded">
       <div className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">{label}</div>
       <div className="text-lg font-semibold text-slate-900">{value}</div>
+    </div>
+  )
+}
+
+function CreateModelField({ label, value, onChange, placeholder, mono }: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  mono?: boolean
+}) {
+  return (
+    <div>
+      <label className="text-[11px] font-medium text-slate-500 uppercase">{label}</label>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className={`fi-input w-full mt-1 ${mono ? 'font-mono text-xs' : ''}`}
+      />
     </div>
   )
 }
