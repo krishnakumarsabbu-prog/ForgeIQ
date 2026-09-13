@@ -744,6 +744,41 @@ export interface EngineeringDecision {
   created_at: string
 }
 
+export interface StateChangeRecord {
+  id: string
+  application_id: string
+  state_id: string
+  change_type: string
+  description: string
+  before_value: string | null
+  after_value: string | null
+  category: string
+  severity: string
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export interface EngineeringStateContext {
+  found: boolean
+  application_id: string
+  query: string
+  version: string
+  health_score: number
+  coverage_pct: number
+  architecture: Record<string, unknown>
+  technologies: string[]
+  relevant_apis: Record<string, unknown>[]
+  relevant_dependencies: Record<string, unknown>[]
+  relevant_known_issues: Record<string, unknown>[]
+  relevant_open_changes: Record<string, unknown>[]
+  relevant_decisions: EngineeringDecision[]
+  relevant_evidence: Array<{ id: string; type: string; summary: string; timestamp: string }>
+  recent_changes: Array<{ change_type: string; description: string; severity: string; timestamp: string }>
+  security_summary: { findings: number; open_vulnerabilities: number; last_scan: string }
+  build_summary: { status: string; last_build: string }
+  deployment_summary: { environment: string; last_deploy: string }
+}
+
 export interface EngineeringState {
   id: string
   application_id: string
@@ -760,10 +795,12 @@ export interface EngineeringState {
   build: Record<string, unknown>
   release: Record<string, unknown>
   deployment: Record<string, unknown>
+  runtime: Record<string, unknown>
   known_issues: Record<string, unknown>[]
   open_changes: Record<string, unknown>[]
   evidence_ids: string[]
   decisions: EngineeringDecision[]
+  change_history_ids: string[]
   last_updated: string
   health_score: number
   coverage_pct: number

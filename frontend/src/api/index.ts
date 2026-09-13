@@ -4,6 +4,7 @@ import type {
   HarnessTemplateComparison, TemplateInheritanceChain, HarnessVersion, HarnessVersionComparison,
   Graph, GraphValidation, GraphNode, GraphEdge, GraphVersion, GraphSerialization, GraphExecutionResult, Loop, LoopStep,
   Pipeline, PipelineTemplate, PipelineTemplateVersion, PipelineVersion, Execution, ExecutionEvent, Evidence, EngineeringState,
+  StateChangeRecord, EngineeringStateContext,
   Policy, Requirement, Environment, Artifact, Deployment, DashboardData, Tenant, User, Approval,
   AgentTestResult, AgentVersionComparison, AgentFactoryFullBody, AgentVersion,
   EngineeringPlan, PlanStage,
@@ -164,6 +165,11 @@ export const apiService = {
 
   engineeringStates: () => api.get<EngineeringState[]>('/engineering-state'),
   engineeringState: (id: string) => api.get<EngineeringState>(`/engineering-state/${id}`),
+  updateEngineeringState: (id: string, body: unknown) => api.put<EngineeringState>(`/engineering-state/application/${id}`, body),
+  stateHistory: (applicationId: string) => api.get<StateChangeRecord[]>(`/engineering-state/application/${applicationId}/history`),
+  stateHistoryByState: (stateId: string) => api.get<StateChangeRecord[]>(`/engineering-state/state/${stateId}/history`),
+  engineeringContext: (applicationId: string, query?: string) => api.get<EngineeringStateContext>(`/engineering-state/application/${applicationId}/context${query ? `?query=${encodeURIComponent(query)}` : ''}`),
+  engineeringContextPost: (body: { application_id: string; query: string }) => api.post<EngineeringStateContext>('/engineering-state/context', body),
   createDecision: (body: unknown) => api.post('/engineering-state/decisions', body),
 
   policies: () => api.get<Policy[]>('/policies'),

@@ -213,6 +213,23 @@ export function useEngineeringStates() {
 export function useEngineeringState(id: string) {
   return useQuery({ queryKey: ['engineering-state', id], queryFn: () => apiService.engineeringState(id), enabled: !!id })
 }
+export function useAppEngineeringState(applicationId: string) {
+  return useQuery({ queryKey: ['app-engineering-state', applicationId], queryFn: () => apiService.appEngineeringState(applicationId), enabled: !!applicationId })
+}
+export function useStateHistory(applicationId: string) {
+  return useQuery({ queryKey: ['state-history', applicationId], queryFn: () => apiService.stateHistory(applicationId), enabled: !!applicationId })
+}
+export function useStateHistoryByState(stateId: string) {
+  return useQuery({ queryKey: ['state-history-state', stateId], queryFn: () => apiService.stateHistoryByState(stateId), enabled: !!stateId })
+}
+export function useEngineeringContext(applicationId: string, query?: string) {
+  return useQuery({ queryKey: ['engineering-context', applicationId, query], queryFn: () => apiService.engineeringContext(applicationId, query), enabled: !!applicationId })
+}
+export function useRetrieveContext() {
+  return useMutation({
+    mutationFn: ({ application_id, query }: { application_id: string; query: string }) => apiService.engineeringContextPost({ application_id, query }),
+  })
+}
 
 export function usePolicies() {
   return useQuery({ queryKey: ['policies'], queryFn: apiService.policies })

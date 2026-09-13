@@ -65,7 +65,7 @@ class InMemoryStore:
         from ..domain.models.execution import Execution, ExecutionEvent, Approval
         from ..domain.models.policy import Policy
         from ..domain.models.evidence import Evidence
-        from ..domain.models.engineering_state import EngineeringState, EngineeringDecision
+        from ..domain.models.engineering_state import EngineeringState, EngineeringDecision, StateChangeRecord
         from ..domain.models.deployment import Environment, Artifact, Deployment
         from ..domain.models.semantic import SemanticEntity, SemanticRelationship
 
@@ -90,6 +90,7 @@ class InMemoryStore:
         self.evidence: InMemoryTable[Evidence] = InMemoryTable()
         self.engineering_states: InMemoryTable[EngineeringState] = InMemoryTable()
         self.decisions: InMemoryTable[EngineeringDecision] = InMemoryTable()
+        self.state_changes: InMemoryTable[StateChangeRecord] = InMemoryTable()
         self.environments: InMemoryTable[Environment] = InMemoryTable()
         self.artifacts: InMemoryTable[Artifact] = InMemoryTable()
         self.deployments: InMemoryTable[Deployment] = InMemoryTable()

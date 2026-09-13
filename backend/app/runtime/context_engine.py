@@ -5,11 +5,13 @@ from typing import Optional
 from ..storage.in_memory import store
 from ..domain.models.base import gen_id
 from ..domain.models.execution import ExecutionEvent, EventType
+from .engineering_state import EngineeringStateEngine
 
 
 class ContextEngine:
     def __init__(self, tenant_id: str) -> None:
         self.tenant_id = tenant_id
+        self._state_engine = EngineeringStateEngine(tenant_id)
 
     def prepare_context(
         self,
@@ -19,6 +21,7 @@ class ContextEngine:
         harness_id: Optional[str] = None,
         execution_id: str = "",
         node_id: Optional[str] = None,
+        context_query: str = "",
     ) -> dict:
         context: dict = {
             "agent": {},
@@ -76,6 +79,11 @@ class ContextEngine:
                     for p in store.policies.all(self.tenant_id) if p.id in harness.policy_ids
                 ]
 
+        if application_id:
+            state_context = self._state_engine.retrieve_context(application_id, context_query)
+            if state_context.get("found"):
+                context["engineering_state_detail"] = state_context
+
         ctx_event = ExecutionEvent(
             id=gen_id("evt_"),
             execution_id=execution_id,
@@ -88,3 +96,13 @@ class ContextEngine:
         store.events.append(ctx_event)
 
         return context
+
+    def retrieve_engineering_context(self, application_id: str, query: str = "") -> dict:
+        """Retrieve relevant Engineering State context for an agent.
+
+        This is the primary method agents use to get application understanding.
+        Example: retrieve_engineering_context(app_id, "payment service context")
+        returns matching APIs, dependencies, tests, architecture, recent changes,
+        known issues, and relevant evidence.
+        """
+        return self._state_engine.retrieve_context(application_id, query)

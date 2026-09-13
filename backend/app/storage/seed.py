@@ -25,7 +25,7 @@ from ..domain.models.pipeline import (
 from ..domain.models.execution import Execution, ExecutionEvent, EventType, Approval
 from ..domain.models.policy import Policy, PolicyType, PolicyScope
 from ..domain.models.evidence import Evidence, EvidenceType
-from ..domain.models.engineering_state import EngineeringState, EngineeringDecision
+from ..domain.models.engineering_state import EngineeringState, EngineeringDecision, StateChangeRecord
 from ..domain.models.deployment import Environment, EnvironmentType, Artifact, Deployment
 from ..domain.models.semantic import SemanticEntity, SemanticEntityType
 
@@ -58,6 +58,7 @@ def seed_all() -> None:
     _seed_executions()
     _seed_evidence()
     _seed_engineering_state()
+    _seed_state_history()
     _seed_deployments()
     _seed_semantic_entities()
 
@@ -1452,6 +1453,60 @@ def _seed_engineering_state() -> None:
         ]
         store.engineering_states.add(es)
         app.engineering_state_id = es.id
+
+
+def _seed_state_history() -> None:
+    apps = store.applications.all()
+    change_types = [
+        ("commit_changed", "Commit updated from abc123 to def456", "version_control", "info", "abc123def456", "def456abc789"),
+        ("dependency_changed", "Dependency 'react' upgraded from 18.2.0 to 19.0.0", "dependencies", "info", "18.2.0", "19.0.0"),
+        ("api_added", "New API endpoint POST /api/v1/payments added", "api", "info", None, "POST /api/v1/payments"),
+        ("test_coverage_changed", "Test coverage improved from 72% to 78%", "testing", "info", "72%", "78%"),
+        ("security_finding_added", "SAST scan found new medium-severity finding in PaymentService", "security", "warning", None, "medium"),
+        ("security_finding_resolved", "Security finding XSS-001 resolved in user input handler", "security", "info", "open", "resolved"),
+        ("deployment_completed", "Deployment to production completed successfully", "deployment", "info", "staging", "production"),
+        ("architecture_updated", "Architecture pattern changed from monolith to microservices", "architecture", "info", "monolith", "microservices"),
+        ("build_status_changed", "Build status changed from failing to passing", "build", "info", "failing", "passing"),
+        ("version_changed", "Application version bumped from 0.9.0 to 1.0.0", "version", "info", "0.9.0", "1.0.0"),
+        ("known_issue_added", "New known issue: Memory leak in connection pool under high load", "issues", "warning", None, "ISSUE-1"),
+        ("known_issue_resolved", "Known issue ISSUE-2 resolved: API timeout on cold start", "issues", "info", "open", "resolved"),
+        ("open_change_added", "New pull request feature/payment-retry opened", "changes", "info", None, "feature/payment-retry"),
+        ("open_change_merged", "Pull request feature/auth-improvements merged to main", "changes", "info", "open", "merged"),
+        ("decision_recorded", "Architecture decision: Adopt event-driven architecture", "governance", "info", None, "event-driven"),
+        ("evidence_added", "Build evidence linked from execution", "evidence", "info", None, "evd_abc123"),
+        ("technology_added", "New technology adopted: Redis for caching", "technology", "info", None, "Redis"),
+        ("health_score_changed", "Health score improved from 0.78 to 0.92", "health", "info", "0.78", "0.92"),
+    ]
+
+    for i, app in enumerate(apps):
+        es = None
+        for s in store.engineering_states.all():
+            if s.application_id == app.id:
+                es = s
+                break
+        if not es:
+            continue
+
+        num_changes = 8 + (i % 6)
+        for j in range(num_changes):
+            ct = change_types[(j + i) % len(change_types)]
+            change_type, desc, category, severity, before, after = ct
+            record = StateChangeRecord(
+                tenant_id=TENANT_ID,
+                id=gen_id("sch_"),
+                application_id=app.id,
+                state_id=es.id,
+                change_type=change_type,
+                description=desc,
+                before_value=before,
+                after_value=after,
+                category=category,
+                severity=severity,
+                metadata={"app_index": i, "change_index": j},
+                created_at=_ts(3000 - j * 150 - i * 50),
+            )
+            store.state_changes.add(record)
+            es.change_history_ids.append(record.id)
 
 
 def _seed_deployments() -> None:
