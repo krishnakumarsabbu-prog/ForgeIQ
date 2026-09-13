@@ -286,7 +286,7 @@ function ImportProgressView({
         {activeTab === 'semantic' && isCompleted && <SemanticModelTab semanticModel={semanticModel} />}
         {activeTab === 'engineering-state' && isCompleted && <EngineeringStateTab importData={importData} onNavigate={onNavigate} />}
         {activeTab === 'documentation' && isCompleted && <DocumentationTab documentation={documentation} />}
-        {activeTab === 'recommendations' && isCompleted && <RecommendationsTab recommendations={recommendations} />}
+        {activeTab === 'recommendations' && isCompleted && <RecommendationsTab recommendations={recommendations} onNavigate={onNavigate} />}
       </div>
     </>
   )
@@ -356,9 +356,15 @@ function ProgressTab({ importData, onNavigate }: { importData: BrownfieldImport;
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onNavigate(`/applications/${importData.application_id}`)}
+                className="fi-button-secondary"
+              >
+                View Application
+              </button>
+              <button
+                onClick={() => onNavigate(`/peer-engineering`)}
                 className="fi-button-primary"
               >
-                View Application <ArrowRight className="h-4 w-4" />
+                Start Peer Engineering <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -622,9 +628,14 @@ function OverviewTab({ importData, onNavigate }: { importData: BrownfieldImport;
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
               <span className="text-sm text-slate-600">Application registered in ForgeIQ with persistent engineering state.</span>
             </div>
-            <button onClick={() => onNavigate(`/applications/${importData.application_id}`)} className="fi-button-primary">
-              View Application <ArrowRight className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => onNavigate(`/applications/${importData.application_id}`)} className="fi-button-secondary">
+                View Application
+              </button>
+              <button onClick={() => onNavigate(`/peer-engineering`)} className="fi-button-primary">
+                Start Peer Engineering <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -867,12 +878,20 @@ function EngineeringStateTab({ importData, onNavigate }: { importData: Brownfiel
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
               <span className="text-sm text-slate-600">Engineering state is persistent and continuously updated as new evidence is generated.</span>
             </div>
-            <button
-              onClick={() => onNavigate(`/engineering-state`)}
-              className="fi-button-secondary"
-            >
-              View Engineering State <ArrowRight className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onNavigate(`/engineering-state`)}
+                className="fi-button-secondary"
+              >
+                View Engineering State
+              </button>
+              <button
+                onClick={() => onNavigate('/peer-engineering')}
+                className="fi-button-primary"
+              >
+                Start Peer Engineering <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -921,7 +940,7 @@ function DocumentationTab({ documentation }: { documentation: Record<string, unk
   )
 }
 
-function RecommendationsTab({ recommendations }: { recommendations: { harnesses: Array<{ id: string; name: string; type: string; environment: string; reason: string }>; pipelines: Array<{ id: string; name: string; reason: string; stages: string[] }> } | undefined }) {
+function RecommendationsTab({ recommendations, onNavigate }: { recommendations: { harnesses: Array<{ id: string; name: string; type: string; environment: string; reason: string }>; pipelines: Array<{ id: string; name: string; reason: string; stages: string[] }> } | undefined; onNavigate: (path: string) => void }) {
   if (!recommendations) return <EmptyState message="No recommendations available" icon={<Zap className="h-12 w-12" />} />
 
   return (
@@ -963,6 +982,21 @@ function RecommendationsTab({ recommendations }: { recommendations: { harnesses:
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="fi-card p-4 bg-forgeiq-50 border-forgeiq-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Code2 className="h-5 w-5 text-forgeiq-600" />
+            <div>
+              <span className="text-sm font-semibold text-slate-900">Ready to Engineer</span>
+              <p className="text-xs text-slate-500">Start a peer engineering session to make changes using the brownfield engineering context.</p>
+            </div>
+          </div>
+          <button onClick={() => onNavigate('/peer-engineering')} className="fi-button-primary">
+            Start Peer Engineering <ArrowRight className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>

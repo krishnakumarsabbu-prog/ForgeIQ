@@ -133,6 +133,7 @@ class PeerEngineeringSession(TenantOwned):
     selected_file_path: str = ""
 
     engineering_state_summary: dict = Field(default_factory=dict)
+    engineering_context: dict = Field(default_factory=dict)
     relevant_files: list[str] = Field(default_factory=list)
 
     impact_analysis: dict = Field(default_factory=dict)
@@ -152,6 +153,8 @@ class PeerEngineeringSession(TenantOwned):
     build_results: BuildResult = Field(default_factory=BuildResult)
 
     evidence: list[EvidenceRecord] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    execution_id: str = ""
 
     decided_by: str = ""
     decided_at: Optional[str] = None

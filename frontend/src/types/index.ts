@@ -1344,6 +1344,9 @@ export interface PeerEngineeringSession {
   security_results: PeerSecurityResult
   build_results: PeerBuildResult
   evidence: PeerEvidenceRecord[]
+  evidence_ids: string[]
+  execution_id: string
+  engineering_context: Record<string, unknown>
   decided_by: string
   decided_at?: string
   decision_reason: string

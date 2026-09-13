@@ -15,7 +15,14 @@ from ..domain.models.peer_engineering import (
     BuildResult,
     EvidenceRecord,
 )
+from ..domain.models.execution import Execution, EventType
+from ..domain.models.evidence import EvidenceType, EvidenceStatus
+from ..domain.models.engineering_state import EngineeringState
 from ..storage.in_memory import store
+from ..runtime.evidence_engine import EvidenceEngine
+from ..runtime.context_engine import ContextEngine
+from ..runtime.engineering_state import EngineeringStateEngine
+from ..events.emit import emit_event
 
 
 PHASE_LABELS: dict[str, str] = {
@@ -469,6 +476,25 @@ class PeerEngineeringService:
             raise ValueError("Application not found")
 
         files = _generate_repository_files(application_id)
+
+        execution = Execution(
+            tenant_id=tenant_id,
+            id=gen_id("exec_"),
+            application_id=application_id,
+            status="RUNNING",
+            started_at=utc_now().isoformat(),
+            trigger="peer_engineering",
+            trigger_reason=request_text[:200],
+            current_stage="peer_engineering",
+        )
+        store.executions.add(execution)
+        emit_event(
+            execution_id=execution.id,
+            event_type=EventType.EXECUTION_STARTED,
+            message=f"Peer engineering session started: '{request_text[:80]}'",
+            data={"application_id": application_id, "request_text": request_text},
+        )
+
         session = PeerEngineeringSession(
             tenant_id=tenant_id,
             id=gen_id("peer_"),
@@ -480,10 +506,51 @@ class PeerEngineeringService:
             repository_files=files,
             selected_file_path=files[0].path if files else "",
             workflow_steps=_make_workflow_steps(),
+            execution_id=execution.id,
         )
         store.peer_sessions.add(session)
         self._run_analysis(session)
         return session
+
+    def _create_evidence(
+        self, session: PeerEngineeringSession, evidence_type: EvidenceType,
+        summary: str, agent: str = "", model: str = "claude-sonnet-4",
+        inputs: dict | None = None, outputs: dict | None = None,
+        code_changes: list | None = None, test_results: dict | None = None,
+        security_results: dict | None = None, build_results: dict | None = None,
+        status: EvidenceStatus = EvidenceStatus.SUCCESS,
+    ) -> str:
+        engine = EvidenceEngine(session.tenant_id)
+        ev = engine.create_evidence(
+            execution_id=session.execution_id,
+            evidence_type=evidence_type,
+            application_id=session.application_id,
+            agent_id=None,
+            model_used=model,
+            inputs=inputs or {},
+            outputs=outputs or {},
+            code_changes=code_changes or [],
+            test_results=test_results or {},
+            security_results=security_results or {},
+            build_results=build_results or {},
+            status=status,
+            summary=summary,
+        )
+        session.evidence_ids.append(ev.id)
+
+        session.evidence.append(EvidenceRecord(
+            phase=session.current_phase,
+            action=evidence_type.value,
+            agent=agent,
+            model=model,
+            summary=summary,
+            data=outputs or inputs or {},
+        ))
+
+        state_engine = EngineeringStateEngine(session.tenant_id)
+        state_engine.update_from_evidence(session.application_id, ev.id)
+
+        return ev.id
 
     def _run_analysis(self, session: PeerEngineeringSession) -> None:
         now = utc_now().isoformat()
@@ -493,8 +560,21 @@ class PeerEngineeringService:
             "intent": session.request_text,
             "keywords": session.request_text.lower().split()[:10],
         })
+        self._create_evidence(
+            session, EvidenceType.AGENT,
+            summary=f"Analyzed developer request: '{session.request_text[:80]}'",
+            agent="Requirement Analyst",
+            inputs={"request_text": session.request_text},
+            outputs={"keywords": session.request_text.lower().split()[:10]},
+        )
 
-        # Phase 2: Read engineering state
+        # Phase 2: Read engineering state via ContextEngine
+        ctx_engine = ContextEngine(session.tenant_id)
+        es_context = ctx_engine.retrieve_engineering_context(
+            session.application_id, session.request_text
+        )
+        session.engineering_context = es_context
+
         es = None
         for s in store.engineering_states.all():
             if s.application_id == session.application_id:
@@ -516,21 +596,51 @@ class PeerEngineeringService:
             }
         session.engineering_state_summary = es_summary
         self._advance_step(session, WorkflowPhase.READ_ENGINEERING_STATE.value, "completed", now, now, es_summary)
+        self._create_evidence(
+            session, EvidenceType.CONTEXT,
+            summary=f"Loaded engineering state: health={es_summary.get('health_score', 'N/A')}, coverage={es_summary.get('coverage_pct', 'N/A')}%",
+            agent="Context Engine",
+            inputs={"application_id": session.application_id, "query": session.request_text},
+            outputs=es_context,
+        )
 
-        # Phase 3: Find relevant files
+        # Phase 3: Find relevant files (informed by brownfield context)
         relevant = _find_relevant_files(session.request_text, session.repository_files)
-        session.relevant_files = relevant
+
+        if es_context.get("found") and es_context.get("relevant_apis"):
+            for api in es_context.get("relevant_apis", []):
+                api_path = str(api.get("path", ""))
+                for f in session.repository_files:
+                    if api_path and api_path.split("/")[-1] in f.path.lower():
+                        if f.path not in relevant:
+                            relevant.append(f.path)
+
+        session.relevant_files = relevant[:8]
         now = utc_now().isoformat()
         self._advance_step(session, WorkflowPhase.FIND_RELEVANT_FILES.value, "completed", now, now, {
-            "files": relevant,
-            "count": len(relevant),
+            "files": session.relevant_files,
+            "count": len(session.relevant_files),
         })
+        self._create_evidence(
+            session, EvidenceType.CONTEXT,
+            summary=f"Identified {len(session.relevant_files)} relevant files using context engine",
+            agent="Context Engine",
+            inputs={"request_text": session.request_text},
+            outputs={"files": session.relevant_files},
+        )
 
         # Phase 4: Impact analysis
-        impact = _analyze_impact(relevant, session.repository_files)
+        impact = _analyze_impact(session.relevant_files, session.repository_files)
         session.impact_analysis = impact
         now = utc_now().isoformat()
         self._advance_step(session, WorkflowPhase.IMPACT_ANALYSIS.value, "completed", now, now, impact)
+        self._create_evidence(
+            session, EvidenceType.AGENT,
+            summary=f"Impact: {impact.get('files_affected', 0)} files, {impact.get('critical_files', 0)} critical, blast radius: {impact.get('blast_radius', 'unknown')}",
+            agent="Solution Architect",
+            inputs={"relevant_files": session.relevant_files},
+            outputs=impact,
+        )
 
         # Phase 5: Risk analysis
         risk_level, risk_factors, risk_score = _calculate_risk(impact, session.repository_files, session.request_text)
@@ -544,9 +654,15 @@ class PeerEngineeringService:
             "risk_score": risk_score,
             "factors": [rf.model_dump() for rf in risk_factors],
         })
+        self._create_evidence(
+            session, EvidenceType.POLICY,
+            summary=f"Risk level: {risk_level} (score: {risk_score})",
+            agent="Risk Engine",
+            outputs={"risk_level": risk_level, "score": risk_score, "factors": [rf.model_dump() for rf in risk_factors]},
+        )
 
         # Phase 6: Create plan
-        plan = _generate_plan(session.request_text, relevant, risk_level)
+        plan = _generate_plan(session.request_text, session.relevant_files, risk_level)
         session.plan = plan
         session.plan_summary = f"Engineering plan with {len(plan)} steps. Risk: {risk_level}."
         now = utc_now().isoformat()
@@ -559,40 +675,16 @@ class PeerEngineeringService:
         now = utc_now().isoformat()
         self._advance_step(session, WorkflowPhase.DEVELOPER_APPROVAL.value, "running", now, None, {})
 
+        emit_event(
+            execution_id=session.execution_id,
+            event_type=EventType.APPROVAL_REQUESTED,
+            message=f"Developer approval requested for plan (risk: {risk_level})",
+            data={"risk_level": risk_level, "plan_summary": session.plan_summary},
+        )
+
         session.status = PeerSessionStatus.PLAN_READY.value
         session.current_phase = WorkflowPhase.DEVELOPER_APPROVAL.value
         session.updated_at = utc_now().isoformat()
-
-        # Add evidence for analysis
-        session.evidence.append(EvidenceRecord(
-            phase="analysis",
-            action="requirement_understood",
-            agent="Requirement Analyst",
-            model="claude-sonnet-4",
-            summary=f"Analyzed request: '{session.request_text[:80]}'",
-            data={"keywords": session.request_text.lower().split()[:10]},
-        ))
-        session.evidence.append(EvidenceRecord(
-            phase="analysis",
-            action="engineering_state_read",
-            agent="Context Engine",
-            summary=f"Loaded engineering state: health={es_summary.get('health_score', 'N/A')}, coverage={es_summary.get('coverage_pct', 'N/A')}%",
-            data=es_summary,
-        ))
-        session.evidence.append(EvidenceRecord(
-            phase="analysis",
-            action="impact_analyzed",
-            agent="Solution Architect",
-            summary=f"Impact: {impact.get('files_affected', 0)} files, {impact.get('critical_files', 0)} critical, blast radius: {impact.get('blast_radius', 'unknown')}",
-            data=impact,
-        ))
-        session.evidence.append(EvidenceRecord(
-            phase="analysis",
-            action="risk_assessed",
-            agent="Risk Engine",
-            summary=f"Risk level: {risk_level} (score: {risk_score})",
-            data={"risk_level": risk_level, "score": risk_score, "factors": [rf.model_dump() for rf in risk_factors]},
-        ))
 
     def _advance_step(self, session: PeerEngineeringSession, phase: str, status: str,
                       started: str | None, completed: str | None, result: dict) -> None:
@@ -619,6 +711,21 @@ class PeerEngineeringService:
         self._advance_step(session, WorkflowPhase.DEVELOPER_APPROVAL.value, "completed",
                            None, utc_now().isoformat(), {"decision": "approved", "by": decided_by})
 
+        self._create_evidence(
+            session, EvidenceType.APPROVAL,
+            summary=f"Plan approved by {decided_by}: {reason}",
+            agent="Developer",
+            inputs={"decided_by": decided_by, "reason": reason},
+            outputs={"decision": "approved"},
+        )
+
+        emit_event(
+            execution_id=session.execution_id,
+            event_type=EventType.APPROVAL_GRANTED,
+            message=f"Plan approved by {decided_by}",
+            data={"decided_by": decided_by, "reason": reason},
+        )
+
         self._execute_plan(session)
         return session
 
@@ -636,6 +743,34 @@ class PeerEngineeringService:
 
         self._advance_step(session, WorkflowPhase.DEVELOPER_APPROVAL.value, "completed",
                            None, utc_now().isoformat(), {"decision": "rejected", "by": decided_by})
+
+        self._create_evidence(
+            session, EvidenceType.APPROVAL,
+            summary=f"Plan rejected by {decided_by}: {reason}",
+            agent="Developer",
+            inputs={"decided_by": decided_by, "reason": reason},
+            outputs={"decision": "rejected"},
+            status=EvidenceStatus.FAILED,
+        )
+
+        emit_event(
+            execution_id=session.execution_id,
+            event_type=EventType.APPROVAL_REJECTED,
+            message=f"Plan rejected by {decided_by}",
+            data={"decided_by": decided_by, "reason": reason},
+        )
+
+        execution = store.executions.get(session.execution_id)
+        if execution:
+            execution.status = "REJECTED"
+            execution.completed_at = utc_now().isoformat()
+            emit_event(
+                execution_id=session.execution_id,
+                event_type=EventType.EXECUTION_FAILED,
+                message="Peer engineering session rejected",
+                data={"reason": reason},
+            )
+
         session.updated_at = utc_now().isoformat()
         return session
 
@@ -648,12 +783,27 @@ class PeerEngineeringService:
         session.decided_by = ""
         session.decided_at = None
         self._advance_step(session, WorkflowPhase.DEVELOPER_APPROVAL.value, "pending", None, None, {})
+
+        emit_event(
+            execution_id=session.execution_id,
+            event_type=EventType.APPROVAL_CHANGES_REQUESTED,
+            message=f"Revision requested: {feedback[:80]}",
+            data={"feedback": feedback},
+        )
+
         self._run_analysis(session)
         return session
 
     def _execute_plan(self, session: PeerEngineeringSession) -> None:
         session.status = PeerSessionStatus.EXECUTING.value
         now = utc_now().isoformat()
+
+        emit_event(
+            execution_id=session.execution_id,
+            event_type=EventType.GRAPH_NODE_STARTED,
+            message="Starting code modification phase",
+            data={"phase": "modify_code"},
+        )
 
         # Phase 8: Modify code
         changes = _generate_changes(session.request_text, session.relevant_files, session.repository_files)
@@ -662,12 +812,27 @@ class PeerEngineeringService:
             "files_changed": len(changes),
             "changes": [c.model_dump() for c in changes],
         })
-        session.evidence.append(EvidenceRecord(
-            phase="execution", action="code_modified",
-            agent="Senior Coding Agent", model="claude-sonnet-4",
-            summary=f"Modified {len(changes)} files",
-            data={"files": [c.file_path for c in changes]},
-        ))
+
+        code_change_records = [
+            {"file": c.file_path, "change_type": c.change_type, "language": c.language,
+             "additions": len(c.after.split("\n")) - len(c.before.split("\n"))}
+            for c in changes
+        ]
+        self._create_evidence(
+            session, EvidenceType.CODE_CHANGE,
+            summary=f"Modified {len(changes)} files for: {session.request_text[:60]}",
+            agent="Senior Coding Agent",
+            inputs={"request_text": session.request_text, "relevant_files": session.relevant_files},
+            outputs={"files_changed": [c.file_path for c in changes]},
+            code_changes=code_change_records,
+        )
+
+        emit_event(
+            execution_id=session.execution_id,
+            event_type=EventType.GRAPH_NODE_COMPLETED,
+            message=f"Code modification complete: {len(changes)} files changed",
+            data={"files_changed": len(changes)},
+        )
 
         # Phase 9: Run tests
         now = utc_now().isoformat()
@@ -685,12 +850,13 @@ class PeerEngineeringService:
         )
         session.test_results = test_result
         self._advance_step(session, WorkflowPhase.RUN_TESTS.value, "completed", now, now, test_result.model_dump())
-        session.evidence.append(EvidenceRecord(
-            phase="execution", action="tests_executed",
-            agent="Verification Agent", model="claude-sonnet-4",
+        self._create_evidence(
+            session, EvidenceType.TEST,
             summary=f"Tests: {test_result.passed} passed, {test_result.failed} failed, {test_result.coverage_pct}% coverage",
-            data=test_result.model_dump(),
-        ))
+            agent="Verification Agent",
+            outputs=test_result.model_dump(),
+            test_results=test_result.model_dump(),
+        )
 
         # Phase 10: Security scan
         now = utc_now().isoformat()
@@ -705,12 +871,13 @@ class PeerEngineeringService:
         )
         session.security_results = sec_result
         self._advance_step(session, WorkflowPhase.SECURITY_SCAN.value, "completed", now, now, sec_result.model_dump())
-        session.evidence.append(EvidenceRecord(
-            phase="execution", action="security_scanned",
-            agent="Security Analyst", model="claude-sonnet-4",
+        self._create_evidence(
+            session, EvidenceType.SECURITY,
             summary=f"SAST: {sec_result.findings} findings ({sec_result.critical} critical, {sec_result.high} high, {sec_result.medium} medium)",
-            data=sec_result.model_dump(),
-        ))
+            agent="Security Analyst",
+            outputs=sec_result.model_dump(),
+            security_results=sec_result.model_dump(),
+        )
 
         # Phase 11: Build
         now = utc_now().isoformat()
@@ -721,28 +888,82 @@ class PeerEngineeringService:
         )
         session.build_results = build_result
         self._advance_step(session, WorkflowPhase.BUILD.value, "completed", now, now, build_result.model_dump())
-        session.evidence.append(EvidenceRecord(
-            phase="execution", action="build_completed",
-            agent="Build Agent", model="claude-sonnet-4",
+        self._create_evidence(
+            session, EvidenceType.BUILD,
             summary=f"Build completed in {build_result.build_time_seconds}s, artifact: {build_result.artifact_path}",
-            data=build_result.model_dump(),
-        ))
+            agent="Build Agent",
+            outputs=build_result.model_dump(),
+            build_results=build_result.model_dump(),
+        )
 
-        # Phase 12: Evidence
+        # Phase 12: Evidence summary
         now = utc_now().isoformat()
         self._advance_step(session, WorkflowPhase.EVIDENCE.value, "completed", now, now, {
-            "evidence_count": len(session.evidence),
+            "evidence_count": len(session.evidence_ids),
         })
-        session.evidence.append(EvidenceRecord(
-            phase="evidence", action="evidence_collected",
-            agent="Evidence Engine",
-            summary=f"Collected {len(session.evidence)} evidence records for the complete engineering workflow",
-            data={"total_evidence": len(session.evidence)},
-        ))
+
+        self._update_engineering_state(session)
 
         session.status = PeerSessionStatus.COMPLETED.value
         session.current_phase = WorkflowPhase.EVIDENCE.value
         session.updated_at = utc_now().isoformat()
+
+        execution = store.executions.get(session.execution_id)
+        if execution:
+            execution.status = "COMPLETED"
+            execution.completed_at = utc_now().isoformat()
+            execution.progress = 100.0
+            execution.result = {
+                "session_id": session.id,
+                "files_changed": len(changes),
+                "tests_passed": test_result.passed,
+                "tests_failed": test_result.failed,
+                "security_findings": sec_result.findings,
+                "build_status": build_result.status,
+                "evidence_count": len(session.evidence_ids),
+            }
+            emit_event(
+                execution_id=session.execution_id,
+                event_type=EventType.EXECUTION_COMPLETED,
+                message="Peer engineering session completed successfully",
+                data=execution.result,
+            )
+
+    def _update_engineering_state(self, session: PeerEngineeringSession) -> None:
+        state_engine = EngineeringStateEngine(session.tenant_id)
+        es = state_engine.get_state(session.application_id)
+        if not es:
+            return
+
+        new_open_changes = list(es.open_changes)
+        new_open_changes.append({
+            "branch": f"peer/{session.id[:8]}",
+            "status": "open",
+            "description": session.request_text[:100],
+            "files": [c.file_path for c in session.file_changes],
+            "session_id": session.id,
+        })
+
+        state_engine.update_state(session.application_id, {
+            "open_changes": new_open_changes,
+        })
+
+        state_engine.record_change(
+            application_id=session.application_id,
+            state_id=es.id,
+            change_type="peer_engineering_completed",
+            description=f"Peer engineering session completed: {session.request_text[:80]}",
+            before_value="",
+            after_value=f"{len(session.file_changes)} files modified, {session.test_results.passed} tests passed",
+            category="engineering",
+            severity="info",
+            metadata={
+                "session_id": session.id,
+                "execution_id": session.execution_id,
+                "evidence_ids": session.evidence_ids,
+                "files_changed": [c.file_path for c in session.file_changes],
+            },
+        )
 
     def get_session(self, session_id: str) -> PeerEngineeringSession | None:
         return store.peer_sessions.get(session_id)

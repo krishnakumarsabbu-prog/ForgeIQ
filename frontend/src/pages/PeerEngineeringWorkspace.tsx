@@ -5,11 +5,12 @@ import {
   AlertTriangle, Play, GitBranch, FlaskConical, Hammer, ScrollText,
   ChevronRight, ChevronDown, FileCode, Lock, Database, Cog,
   RefreshCw, Eye, Edit3, ThumbsUp, ThumbsDown, MessageSquare,
-  Loader2, CircleDot, ArrowRight, Clock, Zap,
+  Loader2, CircleDot, ArrowRight, Clock, Zap, ExternalLink, Activity,
 } from 'lucide-react'
 import {
   useApplications, usePeerSession, useCreatePeerSession,
   useApprovePeerSession, useRejectPeerSession, useRequestPeerRevision,
+  useExecution, useEvidenceTimeline,
 } from '../hooks/useQueries'
 import type { PeerEngineeringSession, RepositoryFile, FileChange, WorkflowStep } from '../types'
 
@@ -338,6 +339,11 @@ function PlanTab({ session }: { session: PeerEngineeringSession }) {
 
 function ContextTab({ session }: { session: PeerEngineeringSession }) {
   const es = session.engineering_state_summary
+  const ctx = session.engineering_context as Record<string, unknown> | undefined
+  const relevantApis = (ctx?.relevant_apis as Record<string, unknown>[]) || []
+  const relevantDeps = (ctx?.relevant_dependencies as Record<string, unknown>[]) || []
+  const relevantIssues = (ctx?.relevant_known_issues as Record<string, unknown>[]) || []
+  const recentChanges = (ctx?.recent_changes as Record<string, unknown>[]) || []
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
@@ -358,6 +364,64 @@ function ContextTab({ session }: { session: PeerEngineeringSession }) {
           <div className="text-lg font-bold text-slate-700">{(es as any)?.build_status || 'N/A'}</div>
         </div>
       </div>
+      {Boolean(ctx?.found) && (
+        <div className="bg-forgeiq-50 rounded-lg border border-forgeiq-200 p-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-forgeiq-700 mb-1.5">
+            <Activity size={12} /> Brownfield Engineering Context
+          </div>
+          {relevantApis.length > 0 && (
+            <div className="mb-2">
+              <div className="text-[10px] uppercase text-slate-400 mb-1">Relevant APIs</div>
+              <div className="space-y-0.5">
+                {relevantApis.slice(0, 5).map((api, i) => (
+                  <div key={i} className="text-[10px] text-slate-600 flex items-center gap-1.5">
+                    <GitBranch size={9} className="text-slate-400" />
+                    <span className="font-mono">{String(api.method || 'GET')} {String(api.path || '')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {relevantDeps.length > 0 && (
+            <div className="mb-2">
+              <div className="text-[10px] uppercase text-slate-400 mb-1">Dependencies</div>
+              <div className="space-y-0.5">
+                {relevantDeps.slice(0, 5).map((dep, i) => (
+                  <div key={i} className="text-[10px] text-slate-600 flex items-center gap-1.5">
+                    <span className="font-mono">{String(dep.name || '')} {String(dep.version || '')}</span>
+                    {Boolean(dep.vulnerable) && <span className="text-red-600 font-medium">vulnerable</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {relevantIssues.length > 0 && (
+            <div className="mb-2">
+              <div className="text-[10px] uppercase text-slate-400 mb-1">Known Issues</div>
+              <div className="space-y-0.5">
+                {relevantIssues.slice(0, 4).map((iss, i) => (
+                  <div key={i} className="text-[10px] text-slate-600 flex items-center gap-1.5">
+                    <AlertTriangle size={9} className={iss.severity === 'high' ? 'text-red-500' : 'text-amber-500'} />
+                    <span>{String(iss.description || '')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {recentChanges.length > 0 && (
+            <div>
+              <div className="text-[10px] uppercase text-slate-400 mb-1">Recent State Changes</div>
+              <div className="space-y-0.5">
+                {recentChanges.slice(0, 3).map((ch, i) => (
+                  <div key={i} className="text-[10px] text-slate-500">
+                    <span className="font-medium">{String(ch.change_type || '')}</span>: {String(ch.description || '')}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       <div>
         <div className="text-xs font-semibold text-slate-700 mb-1.5">Impact Analysis</div>
         <div className="bg-white rounded-lg border border-slate-200 p-3 space-y-1.5">
@@ -508,26 +572,51 @@ function SecurityTab({ session }: { session: PeerEngineeringSession }) {
   )
 }
 
-function EvidenceTab({ session }: { session: PeerEngineeringSession }) {
+function EvidenceTab({ session, onNavigateEvidence }: { session: PeerEngineeringSession; onNavigateEvidence?: (id: string) => void }) {
   if (session.evidence.length === 0) {
     return <div className="text-center py-8 text-xs text-slate-400">No evidence collected yet.</div>
   }
   return (
     <div className="space-y-1.5">
-      {session.evidence.map((ev, i) => (
-        <div key={ev.id || i} className="bg-white border border-slate-200 rounded-lg p-2.5">
-          <div className="flex items-center gap-2">
-            <ScrollText size={12} className="text-slate-400" />
-            <span className="text-xs font-medium text-slate-700">{ev.action}</span>
-            <span className="text-[10px] text-slate-400 ml-auto">{ev.phase}</span>
-          </div>
-          <div className="text-[10px] text-slate-500 mt-1">{ev.summary}</div>
-          <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
-            {ev.agent && <span>{ev.agent}</span>}
-            {ev.model && <span>· {ev.model}</span>}
-          </div>
+      {session.evidence_ids.length > 0 && (
+        <div className="flex items-center gap-1.5 px-2 py-1.5 bg-forgeiq-50 rounded-lg border border-forgeiq-200 text-[10px] text-forgeiq-700">
+          <ScrollText size={11} />
+          <span>{session.evidence_ids.length} evidence records linked to execution</span>
+          {session.execution_id && onNavigateEvidence && (
+            <button
+              onClick={() => onNavigateEvidence(session.execution_id)}
+              className="ml-auto flex items-center gap-0.5 text-forgeiq-600 hover:text-forgeiq-800 font-medium"
+            >
+              View in Evidence <ExternalLink size={9} />
+            </button>
+          )}
         </div>
-      ))}
+      )}
+      {session.evidence.map((ev, i) => {
+        const evidenceId = session.evidence_ids[i]
+        return (
+          <div key={ev.id || i} className="bg-white border border-slate-200 rounded-lg p-2.5">
+            <div className="flex items-center gap-2">
+              <ScrollText size={12} className="text-slate-400" />
+              <span className="text-xs font-medium text-slate-700">{ev.action}</span>
+              <span className="text-[10px] text-slate-400 ml-auto">{ev.phase}</span>
+            </div>
+            <div className="text-[10px] text-slate-500 mt-1">{ev.summary}</div>
+            <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
+              {ev.agent && <span>{ev.agent}</span>}
+              {ev.model && <span>· {ev.model}</span>}
+              {evidenceId && (
+                <button
+                  onClick={() => onNavigateEvidence?.(evidenceId)}
+                  className="ml-auto flex items-center gap-0.5 text-slate-400 hover:text-forgeiq-600"
+                >
+                  <ExternalLink size={9} /> {evidenceId.slice(0, 12)}...
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -687,6 +776,22 @@ export default function PeerEngineeringWorkspace() {
               <div className="text-xs text-slate-500">
                 Status: <span className="font-medium text-slate-700 capitalize">{session.status.replace(/_/g, ' ')}</span>
               </div>
+              {session.execution_id && (
+                <button
+                  onClick={() => navigate(`/executions/${session.execution_id}`)}
+                  className="flex items-center gap-1 text-xs text-forgeiq-600 hover:text-forgeiq-800 font-medium"
+                >
+                  <Activity size={11} /> Execution
+                </button>
+              )}
+              {session.evidence_ids.length > 0 && (
+                <button
+                  onClick={() => navigate('/evidence')}
+                  className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 font-medium"
+                >
+                  <ScrollText size={11} /> {session.evidence_ids.length} Evidence
+                </button>
+              )}
               {session.requires_approval && isPlanReady && (
                 <div className="text-xs text-orange-600 font-medium flex items-center gap-1">
                   <Lock size={11} /> Approval required
@@ -794,7 +899,7 @@ export default function PeerEngineeringWorkspace() {
                 )}
                 {activeTab === 'tests' && <TestsTab session={session} />}
                 {activeTab === 'security' && <SecurityTab session={session} />}
-                {activeTab === 'evidence' && <EvidenceTab session={session} />}
+                {activeTab === 'evidence' && <EvidenceTab session={session} onNavigateEvidence={(id) => navigate('/evidence')} />}
               </div>
             </div>
           </div>
@@ -885,7 +990,7 @@ export default function PeerEngineeringWorkspace() {
               )}
               {bottomTab === 'evidence' && (
                 <div className="p-3 overflow-auto h-full">
-                  <EvidenceTab session={session} />
+                  <EvidenceTab session={session} onNavigateEvidence={(id) => navigate('/evidence')} />
                 </div>
               )}
             </div>
