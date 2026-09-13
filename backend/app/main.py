@@ -10,7 +10,7 @@ from .api.routes import (
     tenants, applications, agents, skills, tools, models,
     harnesses, graphs, loops, pipelines, executions, evidence,
     engineering_state, policies, requirements, delivery, semantic, brownfield,
-    peer_engineering, approvals,
+    peer_engineering, approvals, incidents,
 )
 
 app = FastAPI(
@@ -49,6 +49,7 @@ app.include_router(semantic.router, prefix=api_prefix)
 app.include_router(brownfield.router, prefix=api_prefix)
 app.include_router(peer_engineering.router, prefix=api_prefix)
 app.include_router(approvals.router, prefix=api_prefix)
+app.include_router(incidents.router, prefix=api_prefix)
 
 
 @app.on_event("startup")
