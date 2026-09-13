@@ -37,6 +37,35 @@ class VersionBody(BaseModel):
     changelog: str = "New version"
 
 
+class HarnessUpdate(BaseModel):
+    name: Optional[str] = None
+    display_name: Optional[str] = None
+    purpose: Optional[str] = None
+    harness_type: Optional[HarnessType] = None
+    graph_id: Optional[str] = None
+    loop_ids: Optional[list[str]] = None
+    agent_ids: Optional[list[str]] = None
+    skill_ids: Optional[list[str]] = None
+    tool_ids: Optional[list[str]] = None
+    model_config_ids: Optional[list[str]] = None
+    policy_ids: Optional[list[str]] = None
+    permissions: Optional[list[str]] = None
+    environment: Optional[str] = None
+    execution_rules: Optional[dict] = None
+    retry_rules: Optional[dict] = None
+    failure_rules: Optional[dict] = None
+    approval_rules: Optional[dict] = None
+    escalation_rules: Optional[dict] = None
+    cost_limit_cents: Optional[int] = None
+    time_limit_seconds: Optional[int] = None
+    approval_required: Optional[bool] = None
+    evidence_requirements: Optional[list[str]] = None
+    inputs: Optional[list[str]] = None
+    outputs: Optional[list[str]] = None
+    context: Optional[dict] = None
+    tags: Optional[list[str]] = None
+
+
 @router.get("")
 def list_harnesses(tenant_id: str = "tenant_forgeiq", harness_type: Optional[str] = None):
     items = store.harnesses.all(tenant_id)
@@ -102,7 +131,62 @@ def create_harness(body: HarnessCreate):
     return h
 
 
-@router.post("/{harness_id}/clone")
+@router.put("/{harness_id}")
+def update_harness(harness_id: str, body: HarnessUpdate):
+    h = store.harnesses.get(harness_id)
+    if not h:
+        raise HTTPException(404, "Harness not found")
+    fields = [
+        "name", "display_name", "purpose", "harness_type", "graph_id",
+        "loop_ids", "agent_ids", "skill_ids", "tool_ids", "model_config_ids",
+        "policy_ids", "permissions", "environment", "execution_rules",
+        "retry_rules", "failure_rules", "approval_rules", "escalation_rules",
+        "cost_limit_cents", "time_limit_seconds", "approval_required",
+        "evidence_requirements", "inputs", "outputs", "context", "tags",
+    ]
+    for f in fields:
+        val = getattr(body, f, None)
+        if val is not None:
+            setattr(h, f, val)
+    h.touch()
+    return h
+
+
+@router.post("/{harness_id}/publish/{version}")
+def publish_harness_version(harness_id: str, version: str):
+    h = store.harnesses.get(harness_id)
+    if not h:
+        raise HTTPException(404, "Harness not found")
+
+    # Validate graph before publish
+    if h.graph_id:
+        from ...domain.models.graph import GraphNodeType
+        g = store.graphs.get(h.graph_id)
+        if g:
+            errors = []
+            node_ids = {n.id for n in g.nodes}
+            for e in g.edges:
+                if e.source_node_id not in node_ids or e.target_node_id not in node_ids:
+                    errors.append("Invalid edge references")
+                    break
+            for n in g.nodes:
+                if n.node_type in (GraphNodeType.AGENT, GraphNodeType.TOOL, GraphNodeType.SKILL) and not n.ref_id:
+                    errors.append(f"Node '{n.label}' missing {n.node_type.value} reference")
+            if errors:
+                raise HTTPException(400, f"Graph validation failed: {'; '.join(errors)}")
+
+    for v in h.versions:
+        if v.version == version:
+            v.published = True
+            v.is_default = True
+            v.deprecated = False
+            h.current_version = version
+            h.published = True
+            h.lifecycle = HarnessLifecycle.PUBLISHED
+            h.last_published_at = utc_now()
+        else:
+            v.is_default = False
+    return h
 def clone_harness(harness_id: str, body: CloneBody):
     h = store.harnesses.get(harness_id)
     if not h:
@@ -217,25 +301,6 @@ def create_harness_version(harness_id: str, body: VersionBody):
     )
     h.versions.append(new_version)
     return new_version
-
-
-@router.post("/{harness_id}/publish/{version}")
-def publish_harness_version(harness_id: str, version: str):
-    h = store.harnesses.get(harness_id)
-    if not h:
-        raise HTTPException(404, "Harness not found")
-    for v in h.versions:
-        if v.version == version:
-            v.published = True
-            v.is_default = True
-            v.deprecated = False
-            h.current_version = version
-            h.published = True
-            h.lifecycle = HarnessLifecycle.PUBLISHED
-            h.last_published_at = utc_now()
-        else:
-            v.is_default = False
-    return h
 
 
 @router.get("/{harness_id}/compare/{va}/{vb}")
