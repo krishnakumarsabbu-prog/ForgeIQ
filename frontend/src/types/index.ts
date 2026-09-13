@@ -478,6 +478,75 @@ export interface Deployment {
   health_checks: Record<string, unknown>[]
 }
 
+export interface ActiveExecution {
+  id: string
+  status: string
+  progress: number
+  application: string
+  application_id?: string
+  pipeline: string
+  pipeline_id?: string
+  harness: string
+  harness_id?: string
+  current_stage: string
+  agent: string
+  duration_seconds: number
+  retries: number
+  cost_cents: number
+  started_at?: string
+  tokens: number
+}
+
+export interface ActivityFeedItemData {
+  id: string
+  event_type: string
+  message: string
+  timestamp: string
+  application: string
+  execution_id: string
+}
+
+export interface PipelineHealthItem {
+  id: string
+  name: string
+  application: string
+  runs: number
+  success: number
+  failures: number
+  avg_duration_seconds: number
+  last_run: string
+}
+
+export interface EconomicsBreakdown {
+  ai_spend_cents: number
+  total_tokens: number
+  execution_time_seconds: number
+  retry_cost_cents: number
+  cost_by_agent: Array<{ name: string; cost_cents: number }>
+  cost_by_application: Array<{ name: string; cost_cents: number }>
+}
+
+export interface SecurityQualityData {
+  open_vulnerabilities: number
+  failed_tests: number
+  build_failures: number
+  high_risk_changes: number
+  pending_approvals: number
+  security_findings: number
+}
+
+export interface RecentApplicationItem {
+  id: string
+  name: string
+  type: string
+  technology: string
+  environment: string
+  last_commit: string
+  engineering_state: string
+  last_execution: string
+  status: string
+}
+
 export interface DashboardData {
   counts: Record<string, number>
   execution_status: Record<string, number>
@@ -492,6 +561,14 @@ export interface DashboardData {
     total_security_findings: number
     total_open_vulnerabilities: number
   }
+  active_executions: ActiveExecution[]
+  activity_feed: ActivityFeedItemData[]
+  pipeline_health: PipelineHealthItem[]
+  economics_breakdown: EconomicsBreakdown
+  security_quality: SecurityQualityData
+  recent_applications: RecentApplicationItem[]
+  success_rate: number
+  throughput: number
   recent_executions: Array<{
     id: string
     status: string
