@@ -6,6 +6,7 @@ import type {
   Pipeline, PipelineTemplate, PipelineTemplateVersion, PipelineVersion, Execution, ExecutionEvent, Evidence, EngineeringState,
   Policy, Requirement, Environment, Artifact, Deployment, DashboardData, Tenant, User, Approval,
   AgentTestResult, AgentVersionComparison, AgentFactoryFullBody, AgentVersion,
+  EngineeringPlan, PlanStage,
 } from '../types'
 
 export const apiService = {
@@ -18,6 +19,16 @@ export const apiService = {
   appRequirements: (id: string) => api.get<Requirement[]>(`/applications/${id}/requirements`),
   appEngineeringState: (id: string) => api.get<EngineeringState>(`/applications/${id}/engineering-state`),
   appPipelines: (id: string) => api.get<Pipeline[]>(`/applications/${id}/pipelines`),
+  appExecutions: (id: string) => api.get<Execution[]>(`/applications/${id}/executions`),
+  appEvidence: (id: string) => api.get<Evidence[]>(`/applications/${id}/evidence`),
+  appDeployments: (id: string) => api.get<Deployment[]>(`/applications/${id}/deployments`),
+
+  createEngineeringPlan: (body: { requirement_text: string }) => api.post<EngineeringPlan>('/applications/engineering-plan', body),
+  getEngineeringPlan: (id: string) => api.get<EngineeringPlan>(`/applications/engineering-plan/${id}`),
+  modifyPlanStage: (planId: string, stageId: string, body: unknown) => api.put<EngineeringPlan>(`/applications/engineering-plan/${planId}/stages/${stageId}`, body),
+  approveEngineeringPlan: (id: string, body: { decided_by: string; reason: string }) => api.post<EngineeringPlan>(`/applications/engineering-plan/${id}/approve`, body),
+  rejectEngineeringPlan: (id: string, body: { decided_by: string; reason: string }) => api.post<EngineeringPlan>(`/applications/engineering-plan/${id}/reject`, body),
+  executeEngineeringPlan: (id: string) => api.post<{ execution_id: string; plan_id: string; status: string }>(`/applications/engineering-plan/${id}/execute`),
 
   requirements: () => api.get<Requirement[]>('/requirements'),
   requirement: (id: string) => api.get<Requirement>(`/requirements/${id}`),

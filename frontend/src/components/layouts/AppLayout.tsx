@@ -30,6 +30,7 @@ const navSections: NavSection[] = [
       { to: '/', label: 'Command Center', icon: LayoutDashboard },
       { to: '/requirements', label: 'Requirements', icon: ListTodo },
       { to: '/applications', label: 'Applications', icon: FolderGit2 },
+      { to: '/start-engineering', label: 'Start Engineering', icon: Rocket },
       { to: '/pipelines', label: 'Engineering Pipelines', icon: Workflow },
       { to: '/pipeline-templates', label: 'Pipeline Templates', icon: FileLock2 },
       { to: '/executions', label: 'Executions', icon: Activity },
@@ -97,6 +98,7 @@ const navSections: NavSection[] = [
 ]
 
 const createMenuItems = [
+  { label: 'Start Engineering', to: '/start-engineering', icon: Rocket },
   { label: 'New Application', to: '/applications', icon: FolderGit2 },
   { label: 'New Requirement', to: '/requirements', icon: ListTodo },
   { label: 'Create Agent', to: '/agent-factory', icon: Bot },

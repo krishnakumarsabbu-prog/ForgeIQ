@@ -928,3 +928,48 @@ export interface DashboardData {
     requirements: number
   }>
 }
+
+export interface PlanStage {
+  id: string
+  stage_type: string
+  label: string
+  harness_id?: string
+  harness_name: string
+  agent_ids: string[]
+  agent_names: string[]
+  skill_names: string[]
+  tool_names: string[]
+  environment: string
+  approval_required: boolean
+  description: string
+  order: number
+  status: string
+}
+
+export interface EngineeringPlan {
+  id: string
+  application_id: string
+  requirement_text: string
+  requirement_id?: string
+  application_name: string
+  application_type: string
+  technologies: string[]
+  architecture_summary: string
+  architecture_components: string[]
+  repository_config: Record<string, unknown>
+  engineering_state_summary: Record<string, unknown>
+  recommended_harnesses: Array<{ id: string; name: string; type: string; environment: string }>
+  recommended_pipeline: Record<string, unknown>
+  stages: PlanStage[]
+  risk_level: string
+  risk_factors: string[]
+  estimated_cost_cents: number
+  estimated_tokens: number
+  estimated_duration_seconds: number
+  status: string
+  decided_by?: string
+  decided_at?: string
+  decision_reason: string
+  execution_id?: string
+  created_at: string
+}

@@ -96,5 +96,8 @@ class InMemoryStore:
         self.semantic_entities: InMemoryTable[SemanticEntity] = InMemoryTable()
         self.semantic_relationships: InMemoryTable[SemanticRelationship] = InMemoryTable()
 
+        from ..domain.models.engineering_plan import EngineeringPlan
+        self.engineering_plans: InMemoryTable[EngineeringPlan] = InMemoryTable()
+
 
 store = InMemoryStore()

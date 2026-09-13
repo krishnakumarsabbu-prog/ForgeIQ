@@ -473,6 +473,53 @@ export function useCreateRequirement() {
   })
 }
 
+export function useAppExecutions(id: string) {
+  return useQuery({ queryKey: ['app-executions', id], queryFn: () => apiService.appExecutions(id), enabled: !!id })
+}
+export function useAppEvidence(id: string) {
+  return useQuery({ queryKey: ['app-evidence', id], queryFn: () => apiService.appEvidence(id), enabled: !!id })
+}
+export function useAppDeployments(id: string) {
+  return useQuery({ queryKey: ['app-deployments', id], queryFn: () => apiService.appDeployments(id), enabled: !!id })
+}
+
+export function useCreateEngineeringPlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createEngineeringPlan,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['applications'] }) },
+  })
+}
+export function useEngineeringPlan(id: string) {
+  return useQuery({ queryKey: ['engineering-plan', id], queryFn: () => apiService.getEngineeringPlan(id), enabled: !!id })
+}
+export function useModifyPlanStage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ planId, stageId, body }: { planId: string; stageId: string; body: unknown }) => apiService.modifyPlanStage(planId, stageId, body),
+    onSuccess: (data) => { qc.invalidateQueries({ queryKey: ['engineering-plan', data.id] }) },
+  })
+}
+export function useApproveEngineeringPlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { decided_by: string; reason: string } }) => apiService.approveEngineeringPlan(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['applications'] }) },
+  })
+}
+export function useRejectEngineeringPlan() {
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { decided_by: string; reason: string } }) => apiService.rejectEngineeringPlan(id, body),
+  })
+}
+export function useExecuteEngineeringPlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.executeEngineeringPlan,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['executions'] }) },
+  })
+}
+
 export function useCreatePolicy() {
   const qc = useQueryClient()
   return useMutation({

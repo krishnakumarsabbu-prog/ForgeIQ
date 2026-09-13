@@ -3,6 +3,7 @@ import { AppLayout } from './components/layouts/AppLayout'
 import CommandCenter from './pages/CommandCenter'
 import ApplicationsPage from './pages/ApplicationsPage'
 import ApplicationDetail from './pages/ApplicationDetail'
+import StartEngineeringPage from './pages/StartEngineeringPage'
 import RequirementsPage from './pages/RequirementsPage'
 import AgentsPage from './pages/AgentsPage'
 import AgentDetail from './pages/AgentDetail'
@@ -50,6 +51,7 @@ export default function App() {
         <Route path="/" element={<CommandCenter />} />
         <Route path="/applications" element={<ApplicationsPage />} />
         <Route path="/applications/:id" element={<ApplicationDetail />} />
+        <Route path="/start-engineering" element={<StartEngineeringPage />} />
         <Route path="/requirements" element={<RequirementsPage />} />
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/agents/:id" element={<AgentDetail />} />
