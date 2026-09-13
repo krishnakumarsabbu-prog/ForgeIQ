@@ -805,3 +805,57 @@ export function useSelectPeerFile() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['peer-sessions'] }) },
   })
 }
+
+export function useApprovals(params?: Record<string, string>) {
+  const queryKey = params ? ['approvals', JSON.stringify(params)] : ['approvals']
+  return useQuery({ queryKey, queryFn: () => apiService.approvals(params), refetchInterval: 4000 })
+}
+export function useApproval(id: string) {
+  return useQuery({ queryKey: ['approval', id], queryFn: () => apiService.approval(id), enabled: !!id })
+}
+export function useApprovalTypes() {
+  return useQuery({ queryKey: ['approval-types'], queryFn: apiService.approvalTypes })
+}
+export function useEscalationTargets() {
+  return useQuery({ queryKey: ['escalation-targets'], queryFn: apiService.escalationTargets })
+}
+export function useDecideApproval() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { decided_by: string; decision: string; reason?: string; escalate_to?: string } }) =>
+      apiService.decideApproval(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['approvals'] })
+      qc.invalidateQueries({ queryKey: ['executions'] })
+    },
+  })
+}
+export function useEscalateApproval() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { decided_by: string; reason?: string; escalate_to?: string } }) =>
+      apiService.escalateApproval(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['approvals'] })
+      qc.invalidateQueries({ queryKey: ['executions'] })
+    },
+  })
+}
+export function useDecideExecutionApproval() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ executionId, approvalId, body }: { executionId: string; approvalId: string; body: { decided_by: string; decision: string; reason?: string; escalate_to?: string } }) =>
+      apiService.decideExecutionApproval(executionId, approvalId, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['approvals'] })
+      qc.invalidateQueries({ queryKey: ['executions'] })
+    },
+  })
+}
+export function useResumeExecution() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiService.resumeExecution(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['executions'] }) },
+  })
+}

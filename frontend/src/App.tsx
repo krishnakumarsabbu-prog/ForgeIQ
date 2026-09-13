@@ -45,6 +45,7 @@ import EngineeringEconomicsPage from './pages/EngineeringEconomicsPage'
 import PermissionsPage from './pages/PermissionsPage'
 import GovernancePage from './pages/GovernancePage'
 import PeerEngineeringWorkspace from './pages/PeerEngineeringWorkspace'
+import ApprovalsPage from './pages/ApprovalsPage'
 
 export default function App() {
   return (
@@ -95,6 +96,7 @@ export default function App() {
         <Route path="/engineering-economics" element={<EngineeringEconomicsPage />} />
         <Route path="/permissions" element={<PermissionsPage />} />
         <Route path="/governance" element={<GovernancePage />} />
+      <Route path="/approvals" element={<ApprovalsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>

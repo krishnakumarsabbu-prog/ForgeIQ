@@ -738,13 +738,28 @@ export interface Execution {
 export interface Approval {
   id: string
   execution_id: string
-  status: string
+  status: 'pending' | 'approved' | 'rejected' | 'changes_requested' | 'escalated'
+  approval_type: 'code_change' | 'security_exception' | 'production_deployment' | 'high_risk_change' | 'release' | 'policy_override' | 'failure_escalation' | 'human_task'
   requested_by: string
   requested_at: string
   decided_by?: string
   decided_at?: string
+  decision?: string
   reason: string
   risk_level: string
+  requested_action: string
+  impact: string
+  evidence_id?: string
+  escalated_to?: string
+  escalated_from_id?: string
+  node_id?: string
+  harness_id?: string
+  pipeline_id?: string
+  application_id?: string
+  checkpoint_node_id?: string
+  checkpoint_harness_id?: string
+  checkpoint_pipeline_id?: string
+  tenant_id: string
 }
 
 export interface Policy {

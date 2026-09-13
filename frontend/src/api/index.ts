@@ -170,6 +170,22 @@ export const apiService = {
   createExecution: (body: unknown) => api.post<Execution>('/executions', body),
   executionEvents: (id: string) => api.get<ExecutionEvent[]>(`/executions/${id}/events`),
   executionApprovals: (id: string) => api.get<Approval[]>(`/executions/${id}/approvals`),
+  createExecutionApproval: (id: string, body: unknown) => api.post<Approval>(`/executions/${id}/approvals`, body),
+  decideExecutionApproval: (executionId: string, approvalId: string, body: { decided_by: string; decision: string; reason?: string; escalate_to?: string }) =>
+    api.post<Approval>(`/executions/${executionId}/approvals/${approvalId}/decide`, body),
+  resumeExecution: (id: string) => api.post<{ status: string; execution_id: string }>(`/executions/${id}/resume`),
+
+  approvals: (params?: Record<string, string>) => {
+    const qs = params ? '?' + Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&') : ''
+    return api.get<Approval[]>(`/approvals${qs}`)
+  },
+  approval: (id: string) => api.get<Approval>(`/approvals/${id}`),
+  approvalTypes: () => api.get<{ value: string; label: string }[]>('/approvals/types'),
+  escalationTargets: () => api.get<{ value: string; label: string }[]>('/approvals/escalation-targets'),
+  decideApproval: (id: string, body: { decided_by: string; decision: string; reason?: string; escalate_to?: string }) =>
+    api.post<Approval>(`/approvals/${id}/decide`, body),
+  escalateApproval: (id: string, body: { decided_by: string; reason?: string; escalate_to?: string }) =>
+    api.post<Approval>(`/approvals/${id}/escalate`, { ...body, decision: 'escalated' }),
 
   evidence: (params?: Record<string, string>) => {
     const qs = params ? '?' + Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&') : ''

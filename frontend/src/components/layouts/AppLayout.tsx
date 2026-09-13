@@ -6,7 +6,7 @@ import {
   ScrollText, Shield, FileLock2, Building2, Users, Settings,
   Package, Rocket, Server, ChevronDown, ChevronRight, ChevronLeft,
   Boxes, Gauge, Lock, FileCheck, DollarSign, Search, Plus, Bell,
-  HelpCircle, Check, UserCog, Repeat, Code2,
+  HelpCircle, Check, UserCog, Repeat, Code2, ShieldCheck,
 } from 'lucide-react'
 import { CommandPalette } from '../ui/CommandPalette'
 import { useDashboard, useTenants, useExecutions } from '../../hooks/useQueries'
@@ -87,6 +87,7 @@ const navSections: NavSection[] = [
       { to: '/permissions', label: 'Permissions', icon: Lock },
       { to: '/audit', label: 'Audit', icon: FileLock2 },
       { to: '/governance', label: 'Governance', icon: FileCheck },
+      { to: '/approvals', label: 'Approvals', icon: ShieldCheck },
     ],
   },
   {
