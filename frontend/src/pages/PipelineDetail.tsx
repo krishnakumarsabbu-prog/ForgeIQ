@@ -1,5 +1,5 @@
-import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, GitBranch, ArrowRight, Layers } from 'lucide-react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, GitBranch, ArrowRight, Layers, Settings } from 'lucide-react'
 import { usePipeline, useHarnesses } from '../hooks/useQueries'
 import { PageHeader, StatusBadge, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
 import type { PipelineStage } from '../types'
@@ -11,10 +11,21 @@ const STAGE_TYPE_COLORS: Record<string, string> = {
   approval: 'bg-amber-50 text-amber-700 border border-amber-200',
   verification: 'bg-orange-50 text-orange-700 border border-orange-200',
   rollback: 'bg-red-50 text-red-700 border border-red-200',
+  development: 'bg-forgeiq-50 text-forgeiq-700 border border-forgeiq-200',
+  testing: 'bg-blue-50 text-blue-700 border border-blue-200',
+  security: 'bg-red-50 text-red-700 border border-red-200',
+  release: 'bg-purple-50 text-purple-700 border border-purple-200',
+  deployment: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  harness: 'bg-forgeiq-50 text-forgeiq-700 border border-forgeiq-200',
+  condition: 'bg-slate-50 text-slate-600 border border-slate-200',
+  parallel: 'bg-cyan-50 text-cyan-700 border border-cyan-200',
+  environment: 'bg-teal-50 text-teal-700 border border-teal-200',
+  artifact: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
 }
 
 export default function PipelineDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { data: pipeline, isLoading } = usePipeline(id || '')
   const { data: harnesses } = useHarnesses()
 
@@ -39,7 +50,8 @@ export default function PipelineDetail() {
   }
 
   const sortedStages = [...pipeline.stages].sort((a, b) => a.order - b.order)
-  const harnessName = (harnessId: string) => {
+  const harnessName = (harnessId?: string) => {
+    if (!harnessId) return '—'
     const h = (harnesses || []).find((x) => x.id === harnessId)
     return h ? h.display_name || h.name : harnessId
   }
@@ -50,13 +62,22 @@ export default function PipelineDetail() {
         title={pipeline.display_name || pipeline.name}
         description={pipeline.description}
         actions={
-          <Link
-            to="/pipelines"
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/pipeline-builder?pipeline=${id}`)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-forgeiq-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-forgeiq-700 transition-colors"
+            >
+              <Settings className="h-4 w-4" />
+              Edit in Builder
+            </button>
+            <Link
+              to="/pipelines"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Link>
+          </div>
         }
       />
 
@@ -131,7 +152,8 @@ export default function PipelineDetail() {
                   <th className="text-left">Stage Name</th>
                   <th className="text-left">Type</th>
                   <th className="text-left">Harness</th>
-                  <th className="text-left">Condition</th>
+                  <th className="text-left">Environment</th>
+                  <th className="text-left">Failure Strategy</th>
                   <th className="text-center">Required</th>
                 </tr>
               </thead>
@@ -156,8 +178,11 @@ export default function PipelineDetail() {
                         {harnessName(stage.harness_id)}
                       </div>
                     </td>
-                    <td className="text-slate-600 font-mono text-xs">
-                      {stage.condition || '—'}
+                    <td className="text-slate-600 text-xs">
+                      {stage.config?.environment || '—'}
+                    </td>
+                    <td className="text-slate-600 text-xs">
+                      {stage.config?.failure_strategy || 'abort'}
                     </td>
                     <td className="text-center">
                       {stage.required ? (

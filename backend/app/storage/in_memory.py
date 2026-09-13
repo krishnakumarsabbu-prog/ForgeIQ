@@ -61,7 +61,7 @@ class InMemoryStore:
         from ..domain.models.harness import Harness, HarnessTemplate, HarnessVersion
         from ..domain.models.graph import Graph
         from ..domain.models.loop import Loop
-        from ..domain.models.pipeline import Pipeline
+        from ..domain.models.pipeline import Pipeline, PipelineTemplate
         from ..domain.models.execution import Execution, ExecutionEvent, Approval
         from ..domain.models.policy import Policy
         from ..domain.models.evidence import Evidence
@@ -82,6 +82,7 @@ class InMemoryStore:
         self.graphs: InMemoryTable[Graph] = InMemoryTable()
         self.loops: InMemoryTable[Loop] = InMemoryTable()
         self.pipelines: InMemoryTable[Pipeline] = InMemoryTable()
+        self.pipeline_templates: InMemoryTable[PipelineTemplate] = InMemoryTable()
         self.executions: InMemoryTable[Execution] = InMemoryTable()
         self.events: list[ExecutionEvent] = []
         self.approvals: InMemoryTable[Approval] = InMemoryTable()

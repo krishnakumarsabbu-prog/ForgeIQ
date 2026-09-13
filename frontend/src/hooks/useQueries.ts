@@ -396,6 +396,74 @@ export function useCreatePipeline() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['pipelines'] }) },
   })
 }
+export function useUpdatePipeline() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.updatePipeline(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pipelines'] }) },
+  })
+}
+export function useDeletePipeline() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.deletePipeline,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pipelines'] }) },
+  })
+}
+export function useCreatePipelineVersion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { changelog: string } }) => apiService.createPipelineVersion(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pipelines'] }) },
+  })
+}
+export function usePublishPipeline() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: string }) => apiService.publishPipeline(id, version),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pipelines'] }) },
+  })
+}
+export function usePipelineTemplates() {
+  return useQuery({ queryKey: ['pipeline-templates'], queryFn: apiService.pipelineTemplates })
+}
+export function usePipelineTemplate(id: string) {
+  return useQuery({ queryKey: ['pipeline-template', id], queryFn: () => apiService.pipelineTemplate(id), enabled: !!id })
+}
+export function useCreatePipelineTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createPipelineTemplate,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pipeline-templates'] }) },
+  })
+}
+export function useUpdatePipelineTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.updatePipelineTemplate(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pipeline-templates'] }) },
+  })
+}
+export function useDeletePipelineTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.deletePipelineTemplate,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pipeline-templates'] }) },
+  })
+}
+export function useInstantiatePipelineTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { display_name: string; application_id?: string } }) => apiService.instantiatePipelineTemplate(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['pipelines'] }) },
+  })
+}
+export function usePipelineStageTypes() {
+  return useQuery({ queryKey: ['pipeline-stage-types'], queryFn: apiService.pipelineStageTypes })
+}
+export function usePipelineFailureStrategies() {
+  return useQuery({ queryKey: ['pipeline-failure-strategies'], queryFn: apiService.pipelineFailureStrategies })
+}
 
 export function useCreateRequirement() {
   const qc = useQueryClient()

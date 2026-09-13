@@ -564,14 +564,41 @@ export interface TemplateInheritanceChain {
   governance_enforced: boolean
 }
 
+export interface StageConfig {
+  harness_version?: string
+  input_mapping: Record<string, unknown>
+  output_mapping: Record<string, unknown>
+  environment?: string
+  conditions: string[]
+  failure_strategy: string
+  approval_required: boolean
+  timeout_seconds?: number
+  parallel_stage_ids: string[]
+}
+
 export interface PipelineStage {
   id: string
   name: string
   stage_type: string
-  harness_id: string
+  harness_id?: string
   order: number
   condition?: string
   required: boolean
+  parallel_with: string[]
+  config: StageConfig
+}
+
+export interface PipelineVersion {
+  id: string
+  pipeline_id: string
+  version: string
+  published: boolean
+  is_default: boolean
+  is_immutable: boolean
+  stages: PipelineStage[]
+  changelog: string
+  published_at?: string
+  created_at: string
 }
 
 export interface Pipeline {
@@ -582,9 +609,40 @@ export interface Pipeline {
   application_id?: string
   stages: PipelineStage[]
   current_version: string
+  versions: PipelineVersion[]
   published: boolean
   active: boolean
   tags: string[]
+  template_id?: string
+  template_version?: string
+  created_at: string
+}
+
+export interface PipelineTemplateVersion {
+  id: string
+  template_id: string
+  version: string
+  published: boolean
+  is_default: boolean
+  is_immutable: boolean
+  stage_definitions: Record<string, unknown>[]
+  changelog: string
+  published_at?: string
+  created_at: string
+}
+
+export interface PipelineTemplate {
+  id: string
+  name: string
+  display_name: string
+  description: string
+  category: string
+  stage_definitions: Record<string, unknown>[]
+  current_version: string
+  versions: PipelineTemplateVersion[]
+  published: boolean
+  deprecated: boolean
+  last_published_at?: string
   created_at: string
 }
 

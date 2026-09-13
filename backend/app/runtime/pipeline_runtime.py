@@ -4,7 +4,7 @@ import asyncio
 from typing import Optional
 
 from ..storage.in_memory import store
-from ..domain.models.pipeline import Pipeline
+from ..domain.models.pipeline import Pipeline, PipelineStageType, FailureStrategy
 from ..domain.models.base import gen_id, utc_now
 from ..domain.models.execution import Execution, ExecutionEvent, EventType
 from .harness_runtime import HarnessRuntime
@@ -50,45 +50,204 @@ class PipelineRuntime:
         sorted_stages = sorted(pipeline.stages, key=lambda s: s.order)
         stage_results: list[dict] = []
         total_stages = len(sorted_stages)
+        completed = 0
 
-        for i, stage in enumerate(sorted_stages):
+        i = 0
+        while i < len(sorted_stages):
+            stage = sorted_stages[i]
+
+            # Gather parallel stages
+            parallel_group = [stage]
+            j = i + 1
+            while j < len(sorted_stages) and (
+                sorted_stages[j].parallel_with
+                and stage.id in sorted_stages[j].parallel_with
+                or (stage.config.parallel_stage_ids and sorted_stages[j].id in stage.config.parallel_stage_ids)
+            ):
+                parallel_group.append(sorted_stages[j])
+                j += 1
+
             if execution:
-                execution.current_stage = stage.name
-                execution.progress = (i / total_stages) * 100
+                stage_names = ", ".join(s.name for s in parallel_group)
+                execution.current_stage = stage_names
+                execution.progress = (completed / total_stages) * 100
 
-            env = "development"
-            if stage.stage_type.value in ("deployment", "verification"):
-                env = "production"
-            elif stage.stage_type.value in ("build", "release"):
-                env = "staging"
-
-            harness_result = await self.harness_runtime.execute(
-                harness_id=stage.harness_id,
-                execution_id=execution_id,
-                environment=env,
-                application_id=application_id,
-                requirement_id=requirement_id,
-            )
-            stage_results.append({
-                "stage": stage.name,
-                "type": stage.stage_type.value,
-                "result": harness_result,
-            })
-
-            if harness_result.get("status") == "failed":
-                fail_evt = ExecutionEvent(
+            # Emit stage started events
+            for s in parallel_group:
+                evt = ExecutionEvent(
                     id=gen_id("evt_"),
                     execution_id=execution_id,
-                    event_type=EventType.EXECUTION_FAILED,
+                    event_type=EventType.GRAPH_NODE_STARTED,
                     pipeline_id=pipeline_id,
-                    message=f"Pipeline failed at stage '{stage.name}'",
+                    message=f"Stage '{s.name}' ({s.stage_type.value}) started",
+                    data={"stage_type": s.stage_type.value, "stage_name": s.name},
                 )
-                store.events.append(fail_evt)
-                if execution:
-                    execution.status = "FAILED"
-                    execution.completed_at = utc_now().isoformat()
-                    execution.error_message = f"Failed at stage: {stage.name}"
-                return {"status": "failed", "failed_stage": stage.name, "results": stage_results}
+                store.events.append(evt)
+
+            # Evaluate conditions
+            skip_stage = False
+            for s in parallel_group:
+                if s.condition:
+                    condition_met = self._evaluate_condition(s.condition, stage_results)
+                    if not condition_met:
+                        skip_evt = ExecutionEvent(
+                            id=gen_id("evt_"),
+                            execution_id=execution_id,
+                            event_type=EventType.GRAPH_NODE_COMPLETED,
+                            pipeline_id=pipeline_id,
+                            message=f"Stage '{s.name}' skipped - condition not met: {s.condition}",
+                        )
+                        store.events.append(skip_evt)
+                        skip_stage = True
+                        break
+
+            if skip_stage:
+                stage_results.append({
+                    "stage": stage.name,
+                    "type": stage.stage_type.value,
+                    "result": {"status": "skipped"},
+                })
+                completed += len(parallel_group)
+                i = j
+                continue
+
+            # Handle approval stages
+            if any(s.stage_type == PipelineStageType.APPROVAL for s in parallel_group):
+                for s in parallel_group:
+                    if s.stage_type == PipelineStageType.APPROVAL:
+                        approval_evt = ExecutionEvent(
+                            id=gen_id("evt_"),
+                            execution_id=execution_id,
+                            event_type=EventType.APPROVAL_REQUESTED,
+                            pipeline_id=pipeline_id,
+                            message=f"Approval requested for stage '{s.name}'",
+                            data={"stage_name": s.name},
+                        )
+                        store.events.append(approval_evt)
+                        if execution:
+                            execution.status = "AWAITING_APPROVAL"
+                        stage_results.append({
+                            "stage": s.name,
+                            "type": "approval",
+                            "result": {"status": "awaiting_approval"},
+                        })
+                        completed += 1
+                i = j
+                continue
+
+            # Handle condition-only stages (no harness)
+            if all(s.stage_type == PipelineStageType.CONDITION for s in parallel_group):
+                for s in parallel_group:
+                    condition_result = self._evaluate_condition(
+                        s.config.conditions[0] if s.config.conditions else (s.condition or "true"),
+                        stage_results,
+                    )
+                    evt = ExecutionEvent(
+                        id=gen_id("evt_"),
+                        execution_id=execution_id,
+                        event_type=EventType.GRAPH_NODE_COMPLETED,
+                        pipeline_id=pipeline_id,
+                        message=f"Condition stage '{s.name}' evaluated: {condition_result}",
+                        data={"condition_result": condition_result},
+                    )
+                    store.events.append(evt)
+                    stage_results.append({
+                        "stage": s.name,
+                        "type": "condition",
+                        "result": {"status": "evaluated", "condition_met": condition_result},
+                    })
+                    completed += 1
+                i = j
+                continue
+
+            # Execute harness stages (parallel if group > 1)
+            if len(parallel_group) > 1:
+                tasks = []
+                for s in parallel_group:
+                    env = self._resolve_environment(s)
+                    tasks.append(self._execute_harness_stage(
+                        s, execution_id, pipeline_id, env, application_id, requirement_id,
+                    ))
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for idx, s in enumerate(parallel_group):
+                    r = results[idx]
+                    if isinstance(r, Exception):
+                        r = {"status": "failed", "error": str(r)}
+                    stage_results.append({
+                        "stage": s.name,
+                        "type": s.stage_type.value,
+                        "result": r,
+                    })
+                    completed += 1
+                    if r.get("status") == "failed":
+                        failure_strategy = s.config.failure_strategy
+                        fail_evt = ExecutionEvent(
+                            id=gen_id("evt_"),
+                            execution_id=execution_id,
+                            event_type=EventType.EXECUTION_FAILED,
+                            pipeline_id=pipeline_id,
+                            message=f"Pipeline failed at parallel stage '{s.name}'",
+                        )
+                        store.events.append(fail_evt)
+                        if failure_strategy == FailureStrategy.CONTINUE:
+                            continue
+                        if execution:
+                            execution.status = "FAILED"
+                            execution.completed_at = utc_now().isoformat()
+                            execution.error_message = f"Failed at stage: {s.name}"
+                        return {"status": "failed", "failed_stage": s.name, "results": stage_results}
+            else:
+                env = self._resolve_environment(stage)
+                harness_result = await self._execute_harness_stage(
+                    stage, execution_id, pipeline_id, env, application_id, requirement_id,
+                )
+                stage_results.append({
+                    "stage": stage.name,
+                    "type": stage.stage_type.value,
+                    "result": harness_result,
+                })
+                completed += 1
+
+                if harness_result.get("status") == "failed":
+                    failure_strategy = stage.config.failure_strategy
+                    fail_evt = ExecutionEvent(
+                        id=gen_id("evt_"),
+                        execution_id=execution_id,
+                        event_type=EventType.EXECUTION_FAILED,
+                        pipeline_id=pipeline_id,
+                        message=f"Pipeline failed at stage '{stage.name}'",
+                    )
+                    store.events.append(fail_evt)
+
+                    if failure_strategy == FailureStrategy.CONTINUE:
+                        cont_evt = ExecutionEvent(
+                            id=gen_id("evt_"),
+                            execution_id=execution_id,
+                            event_type=EventType.GRAPH_NODE_COMPLETED,
+                            pipeline_id=pipeline_id,
+                            message=f"Continuing past failed stage '{stage.name}' (failure strategy: continue)",
+                        )
+                        store.events.append(cont_evt)
+                        i = j
+                        continue
+                    elif failure_strategy == FailureStrategy.SKIP:
+                        skip_evt = ExecutionEvent(
+                            id=gen_id("evt_"),
+                            execution_id=execution_id,
+                            event_type=EventType.GRAPH_NODE_COMPLETED,
+                            pipeline_id=pipeline_id,
+                            message=f"Skipping remaining stages after '{stage.name}' (failure strategy: skip)",
+                        )
+                        store.events.append(skip_evt)
+                        break
+                    else:
+                        if execution:
+                            execution.status = "FAILED"
+                            execution.completed_at = utc_now().isoformat()
+                            execution.error_message = f"Failed at stage: {stage.name}"
+                        return {"status": "failed", "failed_stage": stage.name, "results": stage_results}
+
+            i = j
 
         complete_evt = ExecutionEvent(
             id=gen_id("evt_"),
@@ -113,3 +272,51 @@ class PipelineRuntime:
         store.events.append(done_evt)
 
         return {"status": "completed", "stages": len(sorted_stages), "results": stage_results}
+
+    def _resolve_environment(self, stage) -> str:
+        if stage.config.environment:
+            return stage.config.environment
+        if stage.stage_type.value in ("deployment", "verification"):
+            return "production"
+        elif stage.stage_type.value in ("build", "release"):
+            return "staging"
+        return "development"
+
+    async def _execute_harness_stage(
+        self, stage, execution_id: str, pipeline_id: str,
+        env: str, application_id: Optional[str], requirement_id: Optional[str],
+    ) -> dict:
+        if not stage.harness_id:
+            return {"status": "skipped", "reason": "No harness bound to stage"}
+        harness_result = await self.harness_runtime.execute(
+            harness_id=stage.harness_id,
+            execution_id=execution_id,
+            environment=env,
+            application_id=application_id,
+            requirement_id=requirement_id,
+        )
+        return harness_result
+
+    def _evaluate_condition(self, condition: str, prior_results: list[dict]) -> bool:
+        if not condition or condition == "true" or condition == "always":
+            return True
+        if condition == "false" or condition == "never":
+            return False
+        condition_lower = condition.lower().strip()
+        if condition_lower.startswith("prev_stage:"):
+            if not prior_results:
+                return False
+            last = prior_results[-1]
+            expected = condition_lower.split(":", 1)[1].strip()
+            return last.get("result", {}).get("status") == expected
+        if "passed" in condition_lower or "success" in condition_lower:
+            if not prior_results:
+                return False
+            last = prior_results[-1]
+            return last.get("result", {}).get("status") != "failed"
+        if "failed" in condition_lower:
+            if not prior_results:
+                return False
+            last = prior_results[-1]
+            return last.get("result", {}).get("status") == "failed"
+        return True

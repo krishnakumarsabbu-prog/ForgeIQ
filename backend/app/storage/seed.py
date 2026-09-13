@@ -18,7 +18,10 @@ from ..domain.models.harness import (
 from ..domain.models.graph import Graph, GraphNode, GraphEdge, GraphNodeType, GraphEdgeType, GraphMetadata, GraphVersion
 from ..domain.models.loop import Loop, LoopType, LoopStep, LoopStepType, BackoffStrategy, FailureHandling, EscalationType
 from ..runtime.loop_engine import LoopEngine
-from ..domain.models.pipeline import Pipeline, PipelineStage, PipelineStageType
+from ..domain.models.pipeline import (
+    Pipeline, PipelineStage, PipelineStageType, StageConfig, FailureStrategy,
+    PipelineTemplate, PipelineTemplateVersion,
+)
 from ..domain.models.execution import Execution, ExecutionEvent, EventType, Approval
 from ..domain.models.policy import Policy, PolicyType, PolicyScope
 from ..domain.models.evidence import Evidence, EvidenceType
@@ -48,6 +51,7 @@ def seed_all() -> None:
     _seed_harnesses()
     _seed_harness_templates()
     _seed_pipelines()
+    _seed_pipeline_templates()
     _seed_policies()
     _seed_environments()
     _seed_artifacts()
@@ -1000,6 +1004,7 @@ def _seed_pipelines() -> None:
         app = apps[app_idx]
         stages = []
         for order, (stage_name, stage_type, harness_name) in enumerate(stage_configs[i]):
+            approval = stage_type in (PipelineStageType.RELEASE, PipelineStageType.DEPLOYMENT)
             stages.append(PipelineStage(
                 id=gen_id("stage_"),
                 name=stage_name,
@@ -1007,6 +1012,11 @@ def _seed_pipelines() -> None:
                 harness_id=harnesses.get(harness_name, ""),
                 order=order,
                 required=True,
+                config=StageConfig(
+                    environment="production" if stage_type in (PipelineStageType.DEPLOYMENT, PipelineStageType.VERIFICATION) else ("staging" if stage_type in (PipelineStageType.BUILD, PipelineStageType.RELEASE) else "development"),
+                    failure_strategy=FailureStrategy.ABORT,
+                    approval_required=approval,
+                ),
             ))
         p = Pipeline(
             tenant_id=TENANT_ID,
@@ -1022,6 +1032,140 @@ def _seed_pipelines() -> None:
         )
         store.pipelines.add(p)
         app.pipeline_ids.append(p.id)
+
+
+def _seed_pipeline_templates() -> None:
+    harnesses = {h.name: h.id for h in store.harnesses.all()}
+
+    def _stage_def(name, stage_type, harness_name=None, environment=None, approval=False, failure="abort"):
+        return {
+            "name": name,
+            "stage_type": stage_type,
+            "harness_id": harnesses.get(harness_name) if harness_name else None,
+            "required": True,
+            "config": {
+                "environment": environment,
+                "failure_strategy": failure,
+                "approval_required": approval,
+            },
+        }
+
+    templates_data = [
+        (
+            "React Development Pipeline", "react-development", "Full lifecycle pipeline for React frontend applications",
+            "frontend",
+            [
+                _stage_def("Development", "development", "development-harness", "development"),
+                _stage_def("Testing", "testing", "testing-harness", "development"),
+                _stage_def("Security", "security", "security-harness", "development"),
+                _stage_def("Build", "build", "build-harness", "staging"),
+                _stage_def("Deployment", "deployment", "deployment-harness", "production", approval=True),
+                _stage_def("Verification", "verification", "verification-harness", "production"),
+            ],
+        ),
+        (
+            "Spring Boot Development Pipeline", "spring-boot-development", "Full lifecycle pipeline for Java Spring Boot applications",
+            "backend",
+            [
+                _stage_def("Development", "development", "development-harness", "development"),
+                _stage_def("Testing", "testing", "testing-harness", "development"),
+                _stage_def("Security", "security", "security-harness", "development"),
+                _stage_def("Build", "build", "build-harness", "staging"),
+                _stage_def("Release", "release", "release-harness", "staging", approval=True),
+                _stage_def("Deployment", "deployment", "deployment-harness", "production", approval=True),
+                _stage_def("Verification", "verification", "verification-harness", "production"),
+            ],
+        ),
+        (
+            "Python Development Pipeline", "python-development", "Full lifecycle pipeline for Python FastAPI applications",
+            "backend",
+            [
+                _stage_def("Development", "development", "development-harness", "development"),
+                _stage_def("Testing", "testing", "testing-harness", "development"),
+                _stage_def("Security", "security", "security-harness", "development"),
+                _stage_def("Build", "build", "build-harness", "staging"),
+                _stage_def("Deployment", "deployment", "deployment-harness", "production", approval=True),
+                _stage_def("Verification", "verification", "verification-harness", "production"),
+            ],
+        ),
+        (
+            "Production Release Pipeline", "production-release", "Production release with security, testing, approval, and verification gates",
+            "release",
+            [
+                _stage_def("Security", "security", "security-harness", "development"),
+                _stage_def("Testing", "testing", "testing-harness", "development"),
+                _stage_def("Build", "build", "build-harness", "staging"),
+                {"name": "Release Approval", "stage_type": "approval", "required": True, "config": {"approval_required": True}},
+                _stage_def("Release", "release", "release-harness", "staging", approval=True),
+                _stage_def("Deployment", "deployment", "deployment-harness", "production", approval=True),
+                _stage_def("Verification", "verification", "verification-harness", "production"),
+            ],
+        ),
+        (
+            "Security Pipeline", "security-pipeline", "Dedicated security scanning and remediation pipeline",
+            "security",
+            [
+                _stage_def("Security Scan", "security", "security-harness", "development"),
+                {"name": "Security Approval", "stage_type": "approval", "required": True, "config": {"approval_required": True}},
+                _stage_def("Remediation", "development", "development-harness", "development", failure="retry"),
+                _stage_def("Re-Scan", "security", "security-harness", "development"),
+                _stage_def("Verification", "verification", "verification-harness", "development"),
+            ],
+        ),
+        (
+            "Deployment Pipeline", "deployment-pipeline", "Deployment-focused pipeline with verification and rollback",
+            "deployment",
+            [
+                _stage_def("Build", "build", "build-harness", "staging"),
+                {"name": "Deployment Approval", "stage_type": "approval", "required": True, "config": {"approval_required": True}},
+                _stage_def("Deployment", "deployment", "deployment-harness", "production", approval=True),
+                _stage_def("Verification", "verification", "verification-harness", "production"),
+            ],
+        ),
+        (
+            "Full Software Delivery Pipeline", "full-software-delivery", "Complete software delivery lifecycle from requirement to verification",
+            "full",
+            [
+                _stage_def("Development", "development", "development-harness", "development"),
+                _stage_def("Testing", "testing", "testing-harness", "development"),
+                _stage_def("Security", "security", "security-harness", "development"),
+                _stage_def("Build", "build", "build-harness", "staging"),
+                _stage_def("Release", "release", "release-harness", "staging", approval=True),
+                {"name": "Production Approval", "stage_type": "approval", "required": True, "config": {"approval_required": True}},
+                _stage_def("Deployment", "deployment", "deployment-harness", "production", approval=True),
+                _stage_def("Verification", "verification", "verification-harness", "production"),
+            ],
+        ),
+    ]
+
+    for name, slug, desc, category, stage_defs in templates_data:
+        t = PipelineTemplate(
+            tenant_id=TENANT_ID,
+            id=gen_id("ptmpl_"),
+            name=slug,
+            display_name=name,
+            description=desc,
+            category=category,
+            stage_definitions=stage_defs,
+            published=True,
+            last_published_at=_ts(2500),
+            created_at=_ts(3000),
+        )
+        v1 = PipelineTemplateVersion(
+            tenant_id=TENANT_ID,
+            id=gen_id("ptver_"),
+            template_id=t.id,
+            version="v1",
+            published=True,
+            is_default=True,
+            is_immutable=True,
+            stage_definitions=stage_defs,
+            changelog="Initial version",
+            published_at=_ts(2500),
+            created_at=_ts(3000),
+        )
+        t.versions = [v1]
+        store.pipeline_templates.add(t)
 
 
 def _seed_policies() -> None:

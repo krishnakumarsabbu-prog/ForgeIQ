@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { GitBranch, Plus } from 'lucide-react'
+import { GitBranch, Plus, LayoutTemplate } from 'lucide-react'
 import { usePipelines } from '../hooks/useQueries'
 import { PageHeader, StatusBadge, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
 import type { Pipeline } from '../types'
@@ -14,10 +14,22 @@ export default function PipelinesPage() {
         title="Pipelines"
         description="Ordered execution stages composed of harnesses"
         actions={
-          <button className="inline-flex items-center gap-1.5 rounded-md bg-forgeiq-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-forgeiq-700 transition-colors">
-            <Plus className="h-4 w-4" />
-            New Pipeline
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/pipeline-templates')}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <LayoutTemplate className="h-4 w-4" />
+              Templates
+            </button>
+            <button
+              onClick={() => navigate('/pipeline-builder')}
+              className="inline-flex items-center gap-1.5 rounded-md bg-forgeiq-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-forgeiq-700 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              New Pipeline
+            </button>
+          </div>
         }
       />
 

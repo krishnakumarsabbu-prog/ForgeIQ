@@ -20,6 +20,8 @@ import LoopBuilderPage from './pages/LoopBuilderPage'
 import HarnessTemplatesPage from './pages/HarnessTemplatesPage'
 import PipelinesPage from './pages/PipelinesPage'
 import PipelineDetail from './pages/PipelineDetail'
+import PipelineBuilderPage from './pages/PipelineBuilderPage'
+import PipelineTemplatesPage from './pages/PipelineTemplatesPage'
 import ExecutionsPage from './pages/ExecutionsPage'
 import ExecutionDetail from './pages/ExecutionDetail'
 import EvidencePage from './pages/EvidencePage'
@@ -67,6 +69,8 @@ export default function App() {
         <Route path="/harness-templates" element={<HarnessTemplatesPage />} />
         <Route path="/pipelines" element={<PipelinesPage />} />
         <Route path="/pipelines/:id" element={<PipelineDetail />} />
+        <Route path="/pipeline-builder" element={<PipelineBuilderPage />} />
+        <Route path="/pipeline-templates" element={<PipelineTemplatesPage />} />
         <Route path="/executions" element={<ExecutionsPage />} />
         <Route path="/executions/:id" element={<ExecutionDetail />} />
         <Route path="/evidence" element={<EvidencePage />} />
