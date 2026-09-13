@@ -946,6 +946,47 @@ export interface Artifact {
   tags: string[]
 }
 
+export interface PrecheckResult {
+  name: string
+  status: string
+  message: string
+  timestamp: string
+}
+
+export interface PostcheckResult {
+  name: string
+  status: string
+  message: string
+  timestamp: string
+}
+
+export interface RollbackResult {
+  status: string
+  previous_version: string
+  message: string
+  completed_at?: string
+}
+
+export interface VerificationCheck {
+  verification_type: string
+  status: string
+  expected_state: Record<string, unknown>
+  observed_state: Record<string, unknown>
+  message: string
+  duration_ms: number
+  timestamp: string
+}
+
+export interface VerificationResult {
+  overall_status: string
+  checks: VerificationCheck[]
+  passed: number
+  failed: number
+  warning: number
+  skipped: number
+  timestamp: string
+}
+
 export interface Deployment {
   id: string
   application_id: string
@@ -960,6 +1001,25 @@ export interface Deployment {
   verification_results: Record<string, unknown>
   rollback_supported: boolean
   health_checks: Record<string, unknown>[]
+  prechecks: PrecheckResult[]
+  postchecks: PostcheckResult[]
+  verification?: VerificationResult
+  rollback_result?: RollbackResult
+  previous_deployment_id?: string
+  evidence_ids: string[]
+  error_message?: string
+  metadata: Record<string, unknown>
+}
+
+export interface CreateDeploymentResponse {
+  deployment: Deployment
+  execution_result: {
+    status: string
+    stage: string
+    deployment_id: string
+    verification?: Record<string, unknown>
+    rollback?: Record<string, unknown>
+  }
 }
 
 export interface ActiveExecution {

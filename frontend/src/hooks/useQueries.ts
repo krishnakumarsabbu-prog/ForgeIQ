@@ -285,6 +285,41 @@ export function useArtifacts() {
 export function useDeployments() {
   return useQuery({ queryKey: ['deployments'], queryFn: apiService.deployments })
 }
+export function useDeployment(id: string) {
+  return useQuery({ queryKey: ['deployment', id], queryFn: () => apiService.deployment(id), enabled: !!id })
+}
+export function useCreateDeployment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createDeployment,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['deployments'] }) },
+  })
+}
+export function useVerifyDeployment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { execution_id?: string; check_types?: string[] } }) =>
+      apiService.verifyDeployment(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['deployments'] }) },
+  })
+}
+export function useRollbackDeployment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { execution_id?: string; reason?: string } }) =>
+      apiService.rollbackDeployment(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['deployments'] }) },
+  })
+}
+export function useDeploymentStrategies() {
+  return useQuery({ queryKey: ['deployment-strategies'], queryFn: apiService.deploymentStrategies })
+}
+export function useDeploymentStatuses() {
+  return useQuery({ queryKey: ['deployment-statuses'], queryFn: apiService.deploymentStatuses })
+}
+export function useVerificationTypes() {
+  return useQuery({ queryKey: ['verification-types'], queryFn: apiService.verificationTypes })
+}
 
 export function useTenants() {
   return useQuery({ queryKey: ['tenants'], queryFn: apiService.tenants })

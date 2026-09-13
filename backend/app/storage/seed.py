@@ -26,7 +26,12 @@ from ..domain.models.execution import Execution, ExecutionEvent, EventType, Appr
 from ..domain.models.policy import Policy, PolicyType, PolicyScope
 from ..domain.models.evidence import Evidence, EvidenceType, EvidenceStatus
 from ..domain.models.engineering_state import EngineeringState, EngineeringDecision, StateChangeRecord
-from ..domain.models.deployment import Environment, EnvironmentType, Artifact, Deployment
+from ..domain.models.deployment import (
+    Environment, EnvironmentType, Artifact, Deployment,
+    DeploymentStatus, DeploymentStrategy, PrecheckResult, PostcheckResult,
+    VerificationCheck, VerificationResult, VerificationType, VerificationStatus,
+    RollbackResult,
+)
 from ..domain.models.semantic import SemanticEntity, SemanticEntityType
 
 
@@ -1776,6 +1781,74 @@ def _seed_deployments() -> None:
         env = env[-1] if env else envs[0]
         artifact = artifacts[i % len(artifacts)] if artifacts else None
 
+        status = DeploymentStatus.COMPLETED.value if i < 3 else (
+            DeploymentStatus.VERIFICATION_FAILED.value if i == 3 else (
+                DeploymentStatus.DEPLOYING.value if i == 4 else
+                DeploymentStatus.PENDING.value
+            )
+        )
+        strategy = DeploymentStrategy.ROLLING.value if i % 2 == 0 else DeploymentStrategy.BLUE_GREEN.value
+
+        prechecks = [
+            PrecheckResult(name="environment_ready", status="passed", message="Environment is active and accepting deployments", timestamp=_ts(1000 - i * 100)),
+            PrecheckResult(name="artifact_exists", status="passed", message="Artifact exists in registry", timestamp=_ts(1000 - i * 100)),
+            PrecheckResult(name="capacity_available", status="passed", message="Sufficient capacity in target cluster", timestamp=_ts(1000 - i * 100)),
+            PrecheckResult(name="policy_compliant", status="passed", message="Deployment policy compliance verified", timestamp=_ts(1000 - i * 100)),
+            PrecheckResult(name="no_blocking_approvals", status="passed", message="No blocking approvals pending", timestamp=_ts(1000 - i * 100)),
+        ]
+
+        postchecks = [
+            PostcheckResult(name="pods_running", status="passed", message="All pods are running and healthy", timestamp=_ts(1000 - i * 100 - 30)),
+            PostcheckResult(name="traffic_routed", status="passed", message="Traffic successfully routed to new version", timestamp=_ts(1000 - i * 100 - 30)),
+            PostcheckResult(name="no_crash_loops", status="passed", message="No crash loop back detected", timestamp=_ts(1000 - i * 100 - 30)),
+        ]
+
+        verification = None
+        verified = False
+        if i < 3:
+            checks = [
+                VerificationCheck(verification_type=VerificationType.HEALTH.value, status=VerificationStatus.PASSED.value,
+                    expected_state={"liveness": "ok", "readiness": "ok"}, observed_state={"liveness": "ok", "readiness": "ok"},
+                    message="Health endpoints responding", duration_ms=120, timestamp=_ts(1000 - i * 100 - 40)),
+                VerificationCheck(verification_type=VerificationType.API.value, status=VerificationStatus.PASSED.value,
+                    expected_state={"response_code": 200}, observed_state={"response_codes": [200, 200]},
+                    message="All API endpoints returning 200 OK", duration_ms=250, timestamp=_ts(1000 - i * 100 - 40)),
+                VerificationCheck(verification_type=VerificationType.SMOKE_TEST.value, status=VerificationStatus.PASSED.value,
+                    expected_state={"all_passed": True}, observed_state={"all_passed": True},
+                    message="All smoke tests passed", duration_ms=500, timestamp=_ts(1000 - i * 100 - 40)),
+                VerificationCheck(verification_type=VerificationType.PERFORMANCE.value, status=VerificationStatus.PASSED.value,
+                    expected_state={"p99_latency_ms": 500}, observed_state={"p99_latency_ms": 320},
+                    message="Performance within SLA: p99=320ms", duration_ms=2000, timestamp=_ts(1000 - i * 100 - 40)),
+                VerificationCheck(verification_type=VerificationType.ERROR_RATE.value, status=VerificationStatus.PASSED.value,
+                    expected_state={"error_rate_pct": 1.0}, observed_state={"error_rate_pct": 0.2},
+                    message="Error rate 0.2% within 1% threshold", duration_ms=400, timestamp=_ts(1000 - i * 100 - 40)),
+            ]
+            verification = VerificationResult(overall_status=VerificationStatus.PASSED.value, checks=checks,
+                passed=5, failed=0, warning=0, skipped=5, timestamp=_ts(1000 - i * 100 - 40))
+            verified = True
+        elif i == 3:
+            checks = [
+                VerificationCheck(verification_type=VerificationType.HEALTH.value, status=VerificationStatus.PASSED.value,
+                    expected_state={"liveness": "ok"}, observed_state={"liveness": "ok"},
+                    message="Health endpoints responding", duration_ms=100, timestamp=_ts(1000 - i * 100 - 40)),
+                VerificationCheck(verification_type=VerificationType.SMOKE_TEST.value, status=VerificationStatus.FAILED.value,
+                    expected_state={"all_passed": True}, observed_state={"all_passed": False},
+                    message="Smoke test failed: checkout path returned 500", duration_ms=600, timestamp=_ts(1000 - i * 100 - 40)),
+                VerificationCheck(verification_type=VerificationType.ERROR_RATE.value, status=VerificationStatus.FAILED.value,
+                    expected_state={"error_rate_pct": 1.0}, observed_state={"error_rate_pct": 3.5},
+                    message="Error rate 3.5% exceeds 2% threshold", duration_ms=350, timestamp=_ts(1000 - i * 100 - 40)),
+            ]
+            verification = VerificationResult(overall_status=VerificationStatus.FAILED.value, checks=checks,
+                passed=1, failed=2, warning=0, skipped=7, timestamp=_ts(1000 - i * 100 - 40))
+            verified = False
+
+        rollback_result = None
+        if i == 3:
+            rollback_result = RollbackResult(
+                status="success", previous_version="v1.2.4",
+                message="Rollback to v1.2.4 succeeded", completed_at=_ts(1000 - i * 100 - 10),
+            )
+
         d = Deployment(
             tenant_id=TENANT_ID,
             id=gen_id("dep_"),
@@ -1783,18 +1856,24 @@ def _seed_deployments() -> None:
             environment_id=env.id,
             artifact_id=artifact.id if artifact else None,
             version=app.current_version,
-            status="completed" if i < 4 else ("running" if i == 4 else "pending"),
-            strategy="rolling" if i % 2 == 0 else "blue-green",
+            status=status,
+            strategy=strategy,
             started_at=_ts(1000 - i * 100),
-            completed_at=_ts(1000 - i * 100 - 60) if i < 4 else None,
-            verified=i < 3,
-            verification_results={"health_checks": "passed", "smoke_tests": "passed"} if i < 3 else {},
+            completed_at=_ts(1000 - i * 100 - 60) if i < 5 else None,
+            verified=verified,
+            verification_results=verification.model_dump() if verification else {},
             rollback_supported=True,
             health_checks=[
-                {"name": "liveness", "status": "passed"},
-                {"name": "readiness", "status": "passed"},
-                {"name": "smoke-test", "status": "passed" if i < 3 else "pending"},
-            ],
+                {"name": c.verification_type, "status": c.status, "message": c.message}
+                for c in (verification.checks if verification else [])
+            ] if verification else [],
+            prechecks=prechecks,
+            postchecks=postchecks if i < 5 else [],
+            verification=verification,
+            rollback_result=rollback_result,
+            evidence_ids=[gen_id("ev_") for _ in range(2)] if i < 4 else [],
+            error_message="Verification failed - 2 checks failed" if i == 3 else None,
+            metadata={"previous_version": "v1.2.4"} if i == 3 else {},
             created_at=_ts(1000 - i * 100),
         )
         store.deployments.add(d)

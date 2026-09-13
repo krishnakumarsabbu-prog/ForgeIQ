@@ -6,7 +6,7 @@ import type {
   Graph, GraphValidation, GraphNode, GraphEdge, GraphVersion, GraphSerialization, GraphExecutionResult, Loop, LoopStep,
   Pipeline, PipelineTemplate, PipelineTemplateVersion, PipelineVersion, Execution, ExecutionEvent, Evidence, EvidenceStats, EvidenceChainVerification, EvidenceTypeOption, EngineeringState,
   StateChangeRecord, EngineeringStateContext,
-  Policy, Requirement, Environment, Artifact, Deployment, DashboardData, Tenant, User, Approval,
+  Policy, Requirement, Environment, Artifact, Deployment, CreateDeploymentResponse, DashboardData, Tenant, User, Approval,
   AgentTestResult, AgentVersionComparison, AgentFactoryFullBody, AgentVersion,
   EngineeringPlan, PlanStage,
   BrownfieldImport, BrownfieldSemanticModel, BrownfieldRecommendations,
@@ -217,6 +217,20 @@ export const apiService = {
   artifacts: () => api.get<Artifact[]>('/delivery/artifacts'),
   deployments: () => api.get<Deployment[]>('/delivery/deployments'),
   deployment: (id: string) => api.get<Deployment>(`/delivery/deployments/${id}`),
+  createDeployment: (body: {
+    application_id: string; environment_id: string; artifact_id?: string;
+    version?: string; strategy?: string; rollback_supported?: boolean;
+    execution_id?: string; auto_verify?: boolean; auto_rollback_on_failure?: boolean
+  }) => api.post<CreateDeploymentResponse>('/delivery/deployments', body),
+  verifyDeployment: (id: string, body: { execution_id?: string; check_types?: string[] }) =>
+    api.post<{ deployment_id: string; verification: Record<string, unknown> }>(`/delivery/deployments/${id}/verify`, body),
+  rollbackDeployment: (id: string, body: { execution_id?: string; reason?: string }) =>
+    api.post<{ deployment_id: string; rollback: Record<string, unknown> }>(`/delivery/deployments/${id}/rollback`, body),
+  deploymentVerification: (id: string) => api.get<Record<string, unknown>>(`/delivery/deployments/${id}/verification`),
+  deploymentEvidence: (id: string) => api.get<Evidence[]>(`/delivery/deployments/${id}/evidence`),
+  deploymentStrategies: () => api.get<{ value: string; label: string }[]>('/delivery/deployment-strategies'),
+  deploymentStatuses: () => api.get<{ value: string; label: string }[]>('/delivery/deployment-statuses'),
+  verificationTypes: () => api.get<{ value: string; label: string }[]>('/delivery/verification-types'),
 
   tenants: () => api.get<Tenant[]>('/tenants'),
   tenant: (id: string) => api.get<Tenant>(`/tenants/${id}`),
