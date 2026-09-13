@@ -15,6 +15,7 @@ export function FilterBar({ searchValue, onSearchChange, searchPlaceholder = 'Se
         <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
           type="text"
+          aria-label={searchPlaceholder}
           value={searchValue}
           onChange={e => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder}

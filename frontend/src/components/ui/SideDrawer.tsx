@@ -25,17 +25,20 @@ export function SideDrawer({ open, onClose, title, subtitle, width = '480px', ch
 
   return (
     <>
-      <div className="fixed inset-0 bg-slate-900/20 z-40" onClick={onClose} />
+      <div className="fixed inset-0 bg-slate-900/20 z-40" onClick={onClose} aria-hidden="true" />
       <div
         className="fixed right-0 top-0 bottom-0 bg-white border-l border-slate-200 z-50 flex flex-col shadow-xl"
         style={{ width }}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-slate-900 truncate">{title}</h2>
             {subtitle && <p className="text-xs text-slate-500 truncate">{subtitle}</p>}
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600" aria-label="Close drawer">
             <X size={16} />
           </button>
         </div>

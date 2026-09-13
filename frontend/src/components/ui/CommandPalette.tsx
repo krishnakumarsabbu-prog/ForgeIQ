@@ -88,9 +88,11 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     if (open) {
       setQuery('')
       setSelectedIndex(0)
-      setTimeout(() => inputRef.current?.focus(), 50)
+      const t = setTimeout(() => inputRef.current?.focus(), 50)
+      return () => clearTimeout(t)
     }
   }, [open])
+  // cleanup handled in effect return
 
   useEffect(() => { setSelectedIndex(0) }, [query])
 
@@ -107,10 +109,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-slate-900/20" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-slate-900/20" onClick={onClose} role="presentation">
       <div
         className="bg-white rounded-lg shadow-2xl border border-slate-200 w-full max-w-2xl mx-4 overflow-hidden"
         onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-200">
           <Search size={16} className="text-slate-400" />

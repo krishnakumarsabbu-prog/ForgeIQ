@@ -152,7 +152,20 @@ class DeploymentRuntime:
 
         all_passed = True
         for name, description in checks:
-            passed = random.random() > 0.05
+            if name == "environment_ready":
+                env = store.environments.get(deployment.environment_id)
+                passed = env is not None and getattr(env, "status", "active") == "active"
+            elif name == "artifact_exists":
+                passed = bool(deployment.artifact_id) and store.artifacts.get(deployment.artifact_id) is not None
+            elif name == "policy_compliant":
+                passed = True
+            elif name == "no_blocking_approvals":
+                pending = [a for a in store.approvals.all(self.tenant_id)
+                           if a.execution_id == execution_id and a.status == "pending"]
+                passed = len(pending) == 0
+            else:
+                passed = True
+
             result = PrecheckResult(
                 name=name,
                 status="passed" if passed else "failed",
@@ -168,12 +181,16 @@ class DeploymentRuntime:
             )
             if not passed:
                 all_passed = False
-            await asyncio.sleep(0.05)
 
         return all_passed
 
     async def _execute_deploy(self, deployment: Deployment, execution_id: str, node_id: Optional[str]) -> bool:
         strategy = deployment.strategy
+        env = store.environments.get(deployment.environment_id)
+        deploy_url = None
+        if env and hasattr(env, "metadata") and env.metadata:
+            deploy_url = env.metadata.get("deploy_url")
+
         emit_event(
             execution_id=execution_id,
             event_type=EventType.TOOL_EXECUTED,
@@ -181,16 +198,52 @@ class DeploymentRuntime:
             message=f"Executing {strategy} deployment of version {deployment.version}",
             data={"strategy": strategy, "version": deployment.version},
         )
-        await asyncio.sleep(0.1)
 
-        success = random.random() > 0.03
+        if not deploy_url:
+            emit_event(
+                execution_id=execution_id,
+                event_type=EventType.TOOL_RESULT,
+                node_id=node_id,
+                message=f"Deployment skipped: no deploy_url configured on environment '{env.display_name if env else 'unknown'}'",
+                data={"strategy": strategy, "success": False, "reason": "no_deploy_url"},
+            )
+            return False
+
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(deploy_url, json={
+                    "version": deployment.version,
+                    "strategy": strategy,
+                    "application_id": deployment.application_id,
+                })
+            success = 200 <= resp.status_code < 400
+        except ImportError:
+            emit_event(
+                execution_id=execution_id,
+                event_type=EventType.TOOL_RESULT,
+                node_id=node_id,
+                message="Deployment failed: httpx not installed — cannot call deploy API",
+                data={"strategy": strategy, "success": False},
+            )
+            return False
+        except Exception as exc:
+            emit_event(
+                execution_id=execution_id,
+                event_type=EventType.TOOL_RESULT,
+                node_id=node_id,
+                message=f"Deployment failed during {strategy} rollout: {exc}",
+                data={"strategy": strategy, "success": False, "error": str(exc)},
+            )
+            return False
+
         if not success:
             emit_event(
                 execution_id=execution_id,
                 event_type=EventType.TOOL_RESULT,
                 node_id=node_id,
-                message=f"Deployment failed during {strategy} rollout",
-                data={"strategy": strategy, "success": False},
+                message=f"Deployment failed during {strategy} rollout (HTTP {resp.status_code})",
+                data={"strategy": strategy, "success": False, "status_code": resp.status_code},
             )
             return False
 
@@ -204,6 +257,11 @@ class DeploymentRuntime:
         return True
 
     async def _run_postchecks(self, deployment: Deployment, execution_id: str, node_id: Optional[str]) -> bool:
+        env = store.environments.get(deployment.environment_id)
+        probe_url = None
+        if env and hasattr(env, "metadata") and env.metadata:
+            probe_url = env.metadata.get("health_check_url")
+
         checks = [
             ("pods_running", "All pods are running and healthy"),
             ("traffic_routed", "Traffic successfully routed to new version"),
@@ -212,11 +270,21 @@ class DeploymentRuntime:
 
         all_passed = True
         for name, description in checks:
-            passed = random.random() > 0.04
+            if probe_url:
+                try:
+                    import httpx
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        resp = await client.get(probe_url)
+                    passed = 200 <= resp.status_code < 400
+                except Exception:
+                    passed = False
+            else:
+                passed = False
+
             result = PostcheckResult(
                 name=name,
                 status="passed" if passed else "failed",
-                message=description if passed else f"Postcheck failed: {name}",
+                message=description if passed else f"Postcheck failed: {name} (no probe configured or unreachable)",
             )
             deployment.postchecks.append(result)
             emit_event(
@@ -228,7 +296,6 @@ class DeploymentRuntime:
             )
             if not passed:
                 all_passed = False
-            await asyncio.sleep(0.05)
 
         return all_passed
 

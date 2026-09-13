@@ -47,7 +47,7 @@ class PolicyEngine:
             if policy.policy_type.value == "require":
                 field_val = context.get("environment", "")
                 if policy.target_id and field_val != policy.target_id:
-                    continue
+                    return False, applied + [policy.display_name]
 
         evt = emit_event(
             execution_id=execution_id,

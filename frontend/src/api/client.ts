@@ -6,9 +6,23 @@ async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   })
   if (!res.ok) {
-    throw new Error(`API ${res.status}: ${await res.text()}`)
+    let message: string
+    try {
+      const body = await res.text()
+      try {
+        const parsed = JSON.parse(body)
+      message = parsed.detail || parsed.message || body || `API ${res.status}`
+      } catch {
+        message = body || `API ${res.status}`
+      }
+    } catch {
+      message = `API ${res.status}`
+    }
+    throw new Error(message)
   }
-  return res.json()
+  const text = await res.text()
+  if (!text) return {} as T
+  return JSON.parse(text) as T
 }
 
 export const api = {

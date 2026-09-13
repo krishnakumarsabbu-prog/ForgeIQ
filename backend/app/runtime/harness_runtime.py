@@ -922,6 +922,21 @@ class HarnessRuntime:
                 message=f"Approval required for harness '{harness.display_name}' in {environment}",
                 data={"approval_id": approval.id, "risk_level": governance.risk_level},
             )
+            emit_event(
+                execution_id=execution_id,
+                event_type=EventType.HARNESS_STARTED,
+                harness_id=harness_id,
+                message=f"Harness '{harness.display_name}' halted: awaiting approval {approval.id[:12]}",
+                data={"approval_id": approval.id, "status": "awaiting_approval"},
+            )
+            return {
+                "status": "awaiting_approval",
+                "harness": harness.display_name,
+                "harness_version": resolved.harness_version_label,
+                "approval_id": approval.id,
+                "governance": governance.to_dict(),
+                "resolved": resolved.resolution_summary(),
+            }
 
         # ── Context initialization ──────────────────────────────────────
         context = self._initialize_context(

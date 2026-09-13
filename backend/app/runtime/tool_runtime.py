@@ -86,7 +86,7 @@ class ToolRuntime:
                 applied.append(policy.display_name)
                 if policy.policy_type.value == "prohibit":
                     return False, applied
-            if policy.scope.value == "tool" and policy.target_id == environment:
+            if policy.scope.value == "tool" and policy.target_id == tool.id:
                 applied.append(policy.display_name)
                 if policy.policy_type.value == "prohibit":
                     return False, applied
@@ -119,7 +119,7 @@ class ToolRuntime:
     def validate_input(
         self, tool: Tool, operation: str, params: dict
     ) -> tuple[bool, str]:
-        if not params and tool.input_validation:
+        if tool.input_validation:
             required_keys = tool.input_validation.get("required", [])
             for key in required_keys:
                 if key not in params:

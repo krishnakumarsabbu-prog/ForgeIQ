@@ -121,12 +121,17 @@ class GraphEngine:
         elif expression == "any_succeeded":
             return len(predecessors) > 0, "any_succeeded"
         elif expression == "custom":
-            code = config.get("code", "True")
-            try:
-                result = eval(code, {"__builtins__": {}}, {"node_results": node_results})
-                return bool(result), "custom"
-            except Exception:
-                return False, "custom_error"
+            raw_code = config.get("code", "True")
+            allowed = {
+                "all_succeeded": lambda: len(predecessors) == len(node_results),
+                "any_succeeded": lambda: len(predecessors) > 0,
+                "True": lambda: True,
+                "False": lambda: False,
+            }
+            fn = allowed.get(raw_code)
+            if fn is not None:
+                return bool(fn()), "custom"
+            return False, "custom_unsafe_blocked"
         elif "field" in config:
             field_node_id = config["field"]
             operator = config.get("operator", "eq")

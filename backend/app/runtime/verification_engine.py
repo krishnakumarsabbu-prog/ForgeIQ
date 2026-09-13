@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from typing import Optional
-import random
+import asyncio
+import time
 
 from ..storage.in_memory import store
 from ..domain.models.base import gen_id, utc_now
@@ -20,6 +21,10 @@ class VerificationEngine:
     Input:  Expected State + Observed State
     Evaluate: Compare per check type
     Return:  Passed / Failed / Warning
+
+    When a real observability endpoint is configured on the environment, this
+    engine performs a live HTTP probe. When no endpoint is configured, checks
+    return SKIPPED with a clear message — never fabricated success.
     """
 
     VERIFICATION_TYPES = [
@@ -37,6 +42,27 @@ class VerificationEngine:
 
     def __init__(self, tenant_id: str) -> None:
         self.tenant_id = tenant_id
+
+    def _get_probe_url(self, deployment) -> Optional[str]:
+        env = store.environments.get(deployment.environment_id)
+        if env and hasattr(env, "metadata") and env.metadata:
+            return env.metadata.get("health_check_url")
+        return None
+
+    async def _probe(self, url: str, timeout: float = 10.0) -> dict:
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.get(url)
+                return {
+                    "reachable": True,
+                    "status_code": resp.status_code,
+                    "body": resp.text[:2000],
+                }
+        except ImportError:
+            return {"reachable": False, "error": "httpx not installed — cannot probe live endpoints"}
+        except Exception as exc:
+            return {"reachable": False, "error": str(exc)}
 
     async def verify_deployment(
         self,
@@ -63,9 +89,14 @@ class VerificationEngine:
             else self.VERIFICATION_TYPES
         )
 
+        probe_url = self._get_probe_url(deployment)
+        probe_result = None
+        if probe_url:
+            probe_result = await self._probe(probe_url)
+
         checks: list[VerificationCheck] = []
         for vtype in types_to_run:
-            check = self._run_check(deployment, vtype)
+            check = await self._run_check(deployment, vtype, probe_result)
             checks.append(check)
             emit_event(
                 execution_id=execution_id,
@@ -89,6 +120,8 @@ class VerificationEngine:
             overall = VerificationStatus.FAILED.value
         elif warning > 0:
             overall = VerificationStatus.WARNING.value
+        elif passed == 0 and skipped == len(checks):
+            overall = VerificationStatus.SKIPPED.value
         else:
             overall = VerificationStatus.PASSED.value
 
@@ -125,131 +158,53 @@ class VerificationEngine:
             execution_id=execution_id,
             event_type=EventType.EVALUATION_COMPLETED,
             node_id=node_id,
-            message=f"Verification completed: {overall} ({passed} passed, {failed} failed, {warning} warning)",
-            data={"overall_status": overall, "passed": passed, "failed": failed, "warning": warning},
+            message=f"Verification completed: {overall} ({passed} passed, {failed} failed, {warning} warning, {skipped} skipped)",
+            data={"overall_status": overall, "passed": passed, "failed": failed, "warning": warning, "skipped": skipped},
         )
 
         return result.model_dump()
 
-    def _run_check(self, deployment, vtype: VerificationType) -> VerificationCheck:
+    async def _run_check(self, deployment, vtype: VerificationType, probe: Optional[dict]) -> VerificationCheck:
         env = store.environments.get(deployment.environment_id)
         env_name = env.display_name if env else "unknown"
         app = store.applications.get(deployment.application_id)
         app_name = app.display_name if app else "unknown"
 
+        def skipped(msg: str) -> VerificationCheck:
+            return VerificationCheck(
+                verification_type=vtype.value,
+                status=VerificationStatus.SKIPPED.value,
+                expected_state={},
+                observed_state={"probe_available": False},
+                message=msg,
+                duration_ms=0,
+            )
+
+        if not probe or not probe.get("reachable"):
+            return skipped(
+                f"No live probe endpoint configured for {env_name} — "
+                f"verification '{vtype.value}' skipped (configure environment metadata 'health_check_url')"
+            )
+
+        status_code = probe.get("status_code", 0)
+        is_healthy = 200 <= status_code < 400
+        body = probe.get("body", "")
+
         if vtype == VerificationType.HEALTH:
-            expected = {"liveness": "ok", "readiness": "ok", "status": "healthy"}
-            observed = {"liveness": "ok", "readiness": "ok", "status": "healthy"}
-            status = VerificationStatus.PASSED.value
-            msg = f"Health endpoints responding for {app_name} in {env_name}"
-            return VerificationCheck(verification_type=vtype.value, status=status, expected_state=expected, observed_state=observed, message=msg, duration_ms=random.randint(50, 200))
+            expected = {"status_code": 200, "status": "healthy"}
+            observed = {"status_code": status_code}
+            if is_healthy:
+                return VerificationCheck(verification_type=vtype.value, status=VerificationStatus.PASSED.value, expected_state=expected, observed_state=observed, message=f"Health endpoint responding {status_code} for {app_name} in {env_name}", duration_ms=50)
+            return VerificationCheck(verification_type=vtype.value, status=VerificationStatus.FAILED.value, expected_state=expected, observed_state=observed, message=f"Health endpoint returned {status_code}", duration_ms=50)
 
         if vtype == VerificationType.API:
-            expected = {"endpoints": ["/api/v1/health", "/api/v1/metrics"], "response_code": 200}
-            observed = {"endpoints": ["/api/v1/health", "/api/v1/metrics"], "response_codes": [200, 200]}
-            status = VerificationStatus.PASSED.value
-            msg = "All API endpoints returning 200 OK"
-            return VerificationCheck(verification_type=vtype.value, status=status, expected_state=expected, observed_state=observed, message=msg, duration_ms=random.randint(100, 500))
+            expected = {"response_code": 200}
+            observed = {"status_code": status_code}
+            if is_healthy:
+                return VerificationCheck(verification_type=vtype.value, status=VerificationStatus.PASSED.value, expected_state=expected, observed_state=observed, message=f"API responding {status_code}", duration_ms=100)
+            return VerificationCheck(verification_type=vtype.value, status=VerificationStatus.FAILED.value, expected_state=expected, observed_state=observed, message=f"API returned {status_code}", duration_ms=100)
 
-        if vtype == VerificationType.SMOKE_TEST:
-            expected = {"critical_paths": ["login", "checkout", "payment"], "all_passed": True}
-            smoke_pass = random.random() > 0.15
-            observed = {"critical_paths": ["login", "checkout", "payment"], "all_passed": smoke_pass}
-            status = VerificationStatus.PASSED.value if smoke_pass else VerificationStatus.FAILED.value
-            msg = "All smoke tests passed" if smoke_pass else "Smoke test failed: checkout path returned 500"
-            return VerificationCheck(verification_type=vtype.value, status=status, expected_state=expected, observed_state=observed, message=msg, duration_ms=random.randint(200, 800))
-
-        if vtype == VerificationType.FUNCTIONAL:
-            expected = {"test_count": 42, "pass_rate": 100}
-            func_pass = random.random() > 0.1
-            passed_count = 42 if func_pass else 39
-            observed = {"test_count": 42, "passed": passed_count, "failed": 42 - passed_count}
-            status = VerificationStatus.PASSED.value if func_pass else VerificationStatus.FAILED.value
-            msg = f"Functional tests: {passed_count}/42 passed" if not func_pass else "All 42 functional tests passed"
-            return VerificationCheck(verification_type=vtype.value, status=status, expected_state=expected, observed_state=observed, message=msg, duration_ms=random.randint(500, 2000))
-
-        if vtype == VerificationType.PERFORMANCE:
-            expected = {"p99_latency_ms": 500, "throughput_rps": 1000}
-            p99 = random.randint(200, 600)
-            rps = random.randint(800, 1200)
-            observed = {"p99_latency_ms": p99, "throughput_rps": rps}
-            if p99 <= 500 and rps >= 1000:
-                status = VerificationStatus.PASSED.value
-                msg = f"Performance within SLA: p99={p99}ms, rps={rps}"
-            elif p99 <= 600:
-                status = VerificationStatus.WARNING.value
-                msg = f"Performance degraded but acceptable: p99={p99}ms, rps={rps}"
-            else:
-                status = VerificationStatus.FAILED.value
-                msg = f"Performance SLA breach: p99={p99}ms exceeds 500ms threshold"
-            return VerificationCheck(verification_type=vtype.value, status=status, expected_state=expected, observed_state=observed, message=msg, duration_ms=random.randint(1000, 5000))
-
-        if vtype == VerificationType.METRICS:
-            expected = {"cpu_usage_pct": 70, "memory_usage_pct": 80, "ingestion": "active"}
-            cpu = random.randint(30, 85)
-            mem = random.randint(40, 90)
-            observed = {"cpu_usage_pct": cpu, "memory_usage_pct": mem, "ingestion": "active"}
-            if cpu <= 70 and mem <= 80:
-                status = VerificationStatus.PASSED.value
-                msg = f"Metrics nominal: CPU={cpu}%, Memory={mem}%"
-            else:
-                status = VerificationStatus.WARNING.value
-                msg = f"Metrics elevated: CPU={cpu}%, Memory={mem}% - monitor closely"
-            return VerificationCheck(verification_type=vtype.value, status=status, expected_state=expected, observed_state=observed, message=msg, duration_ms=random.randint(100, 300))
-
-        if vtype == VerificationType.LOGS:
-            expected = {"error_rate": 0, "warning_rate": 5, "no_fatal_logs": True}
-            errors = random.randint(0, 3)
-            warnings = random.randint(0, 10)
-            observed = {"errors": errors, "warnings": warnings, "fatal": 0}
-            if errors == 0:
-                status = VerificationStatus.PASSED.value
-                msg = f"No errors in logs, {warnings} warnings"
-            elif errors <= 2:
-                status = VerificationStatus.WARNING.value
-                msg = f"{errors} errors found in logs, {warnings} warnings"
-            else:
-                status = VerificationStatus.FAILED.value
-                msg = f"{errors} errors in logs - investigate immediately"
-            return VerificationCheck(verification_type=vtype.value, status=status, expected_state=expected, observed_state=observed, message=msg, duration_ms=random.randint(200, 600))
-
-        if vtype == VerificationType.ERROR_RATE:
-            expected = {"error_rate_pct": 1.0, "5xx_rate_pct": 0.5}
-            err_rate = round(random.uniform(0, 3), 2)
-            observed = {"error_rate_pct": err_rate, "5xx_rate_pct": round(err_rate * 0.3, 2)}
-            if err_rate <= 1.0:
-                status = VerificationStatus.PASSED.value
-                msg = f"Error rate {err_rate}% within 1% threshold"
-            elif err_rate <= 2.0:
-                status = VerificationStatus.WARNING.value
-                msg = f"Error rate {err_rate}% elevated above 1% threshold"
-            else:
-                status = VerificationStatus.FAILED.value
-                msg = f"Error rate {err_rate}% exceeds 2% threshold"
-            return VerificationCheck(verification_type=vtype.value, status=status, expected_state=expected, observed_state=observed, message=msg, duration_ms=random.randint(300, 800))
-
-        if vtype == VerificationType.SECURITY:
-            expected = {"critical_vulns": 0, "high_vulns": 0, "secrets_exposed": False}
-            crit = 0
-            high = random.randint(0, 1)
-            observed = {"critical_vulns": crit, "high_vulns": high, "secrets_exposed": False}
-            if crit == 0 and high == 0:
-                status = VerificationStatus.PASSED.value
-                msg = "Security scan clean: no critical or high vulnerabilities"
-            else:
-                status = VerificationStatus.WARNING.value
-                msg = f"Security scan: {crit} critical, {high} high vulnerabilities"
-            return VerificationCheck(verification_type=vtype.value, status=status, expected_state=expected, observed_state=observed, message=msg, duration_ms=random.randint(2000, 8000))
-
-        if vtype == VerificationType.BUSINESS_BEHAVIOR:
-            expected = {"key_flows": ["user_signup", "order_placement", "payment_processing"], "all_working": True}
-            biz_pass = random.random() > 0.12
-            observed = {"key_flows": ["user_signup", "order_placement", "payment_processing"], "all_working": biz_pass}
-            status = VerificationStatus.PASSED.value if biz_pass else VerificationStatus.FAILED.value
-            msg = "All business flows functioning correctly" if biz_pass else "Business flow failure: payment_processing returning errors"
-            return VerificationCheck(verification_type=vtype.value, status=status, expected_state=expected, observed_state=observed, message=msg, duration_ms=random.randint(500, 3000))
-
-        return VerificationCheck(verification_type=vtype.value, status=VerificationStatus.SKIPPED.value, message="Unknown verification type")
+        return skipped(f"Verification type '{vtype.value}' requires a configured observability integration for {env_name}")
 
     def _create_verification_evidence(self, deployment, execution_id: str, result: VerificationResult, node_id: Optional[str]) -> None:
         env = store.environments.get(deployment.environment_id)

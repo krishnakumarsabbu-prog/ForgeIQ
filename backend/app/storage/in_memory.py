@@ -15,8 +15,15 @@ class InMemoryTable[T]:
         self._by_tenant.setdefault(tenant_id, []).append(item_id)
         return item
 
-    def get(self, item_id: str) -> Optional[T]:
-        return self._items.get(item_id)
+    def get(self, item_id: str, tenant_id: Optional[str] = None) -> Optional[T]:
+        item = self._items.get(item_id)
+        if item is None:
+            return None
+        if tenant_id is not None:
+            item_tenant = getattr(item, "tenant_id", None)
+            if item_tenant is not None and item_tenant != tenant_id:
+                return None
+        return item
 
     def all(self, tenant_id: Optional[str] = None) -> list[T]:
         if tenant_id is None:
@@ -24,10 +31,14 @@ class InMemoryTable[T]:
         ids = self._by_tenant.get(tenant_id, [])
         return [self._items[i] for i in ids if i in self._items]
 
-    def update(self, item_id: str, patch: dict[str, Any]) -> Optional[T]:
+    def update(self, item_id: str, patch: dict[str, Any], tenant_id: Optional[str] = None) -> Optional[T]:
         item = self._items.get(item_id)
         if item is None:
             return None
+        if tenant_id is not None:
+            item_tenant = getattr(item, "tenant_id", None)
+            if item_tenant is not None and item_tenant != tenant_id:
+                return None
         for k, v in patch.items():
             if hasattr(item, k):
                 setattr(item, k, v)
@@ -35,12 +46,17 @@ class InMemoryTable[T]:
             item.touch()
         return item
 
-    def delete(self, item_id: str) -> bool:
-        item = self._items.pop(item_id, None)
+    def delete(self, item_id: str, tenant_id: Optional[str] = None) -> bool:
+        item = self._items.get(item_id)
         if item is None:
             return False
-        tenant_id = getattr(item, "tenant_id", "default")
-        ids = self._by_tenant.get(tenant_id, [])
+        if tenant_id is not None:
+            item_tenant = getattr(item, "tenant_id", None)
+            if item_tenant is not None and item_tenant != tenant_id:
+                return False
+        self._items.pop(item_id, None)
+        tenant_id_val = getattr(item, "tenant_id", "default")
+        ids = self._by_tenant.get(tenant_id_val, [])
         if item_id in ids:
             ids.remove(item_id)
         return True

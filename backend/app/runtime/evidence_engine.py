@@ -152,7 +152,7 @@ class EvidenceEngine:
     def verify_chain(self, execution_id: str) -> dict:
         """Verify the integrity of an evidence chain for an execution."""
         evidence_list = [
-            e for e in store.evidence.all() if e.execution_id == execution_id
+            e for e in store.evidence.all(self.tenant_id) if e.execution_id == execution_id
         ]
         evidence_list.sort(key=lambda e: e.timestamp)
 
@@ -181,7 +181,7 @@ class EvidenceEngine:
     def get_timeline(self, execution_id: str) -> list[Evidence]:
         """Return evidence records ordered as a timeline for an execution."""
         evidence_list = [
-            e for e in store.evidence.all() if e.execution_id == execution_id
+            e for e in store.evidence.all(self.tenant_id) if e.execution_id == execution_id
         ]
         evidence_list.sort(key=lambda e: e.timestamp)
         return evidence_list

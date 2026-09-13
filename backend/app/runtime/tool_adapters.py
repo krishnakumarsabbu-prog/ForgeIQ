@@ -468,8 +468,12 @@ class FilesystemAdapter(ToolAdapter):
         if not file_path:
             return ToolResult(exit_code=1, stderr="path parameter required")
 
-        base = working_dir or "."
-        full = os.path.join(base, file_path) if not os.path.isabs(file_path) else file_path
+        base = os.path.abspath(working_dir or ".")
+        if os.path.isabs(file_path):
+            return ToolResult(exit_code=1, stderr="Absolute paths are not allowed")
+        full = os.path.abspath(os.path.join(base, file_path))
+        if not full.startswith(base + os.sep) and full != base:
+            return ToolResult(exit_code=1, stderr="Path traversal detected: path escapes working directory")
 
         if operation == "read":
             try:

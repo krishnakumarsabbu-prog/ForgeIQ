@@ -9,6 +9,8 @@ export interface UseExecutionSSEResult {
   reconnect: () => void
 }
 
+const MAX_EVENTS = 500
+
 export function useExecutionSSE(executionId: string): UseExecutionSSEResult {
   const [events, setEvents] = useState<ExecutionEvent[]>([])
   const [connectionState, setConnectionState] = useState<SSEConnectionState>('connecting')
@@ -36,7 +38,8 @@ export function useExecutionSSE(executionId: string): UseExecutionSSEResult {
         if (parsed && parsed.id) {
           setEvents(prev => {
             if (prev.some(ev => ev.id === parsed.id)) return prev
-            return [...prev, parsed]
+            const next = [...prev, parsed]
+            return next.length > MAX_EVENTS ? next.slice(-MAX_EVENTS) : next
           })
         }
       } catch {

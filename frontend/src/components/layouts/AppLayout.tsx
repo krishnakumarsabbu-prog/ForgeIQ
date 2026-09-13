@@ -263,6 +263,7 @@ export function AppLayout() {
             <button
               onClick={() => setTenantOpen(!tenantOpen)}
               className="flex items-center gap-2 px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-100 rounded-md border border-slate-200"
+              aria-label="Select tenant"
             >
               <div className="w-5 h-5 rounded bg-forgeiq-100 flex items-center justify-center">
                 <Building2 size={11} className="text-forgeiq-700" />
@@ -286,7 +287,7 @@ export function AppLayout() {
                   <div className="px-3 py-2 text-sm text-slate-500">Acme Corp</div>
                 )}
                 <div className="border-t border-slate-100 mt-1 pt-1">
-                  <button className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+                  <button onClick={() => { navigate('/tenants'); setTenantOpen(false) }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
                     <Plus size={14} className="text-slate-400" /> Add Tenant
                   </button>
                 </div>
@@ -361,6 +362,7 @@ export function AppLayout() {
             <button
               onClick={() => setNotifOpen(!notifOpen)}
               className="relative p-1.5 text-slate-500 hover:bg-slate-100 rounded-md"
+              aria-label={`Notifications (${notifications.length} active)`}
             >
               <Bell size={18} />
               {notifications.length > 0 && (
@@ -399,7 +401,7 @@ export function AppLayout() {
           </div>
 
           {/* Help */}
-          <button className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-md">
+          <button className="p-1.5 text-slate-500 hover:bg-slate-100 rounded-md" aria-label="Help" onClick={() => navigate('/settings')}>
             <HelpCircle size={18} />
           </button>
 
@@ -408,6 +410,7 @@ export function AppLayout() {
             <button
               onClick={() => setUserOpen(!userOpen)}
               className="flex items-center gap-2 pl-1 pr-2 py-1 hover:bg-slate-100 rounded-md"
+              aria-label="User menu"
             >
               <div className="w-7 h-7 rounded-full bg-forgeiq-100 flex items-center justify-center">
                 <span className="text-xs font-semibold text-forgeiq-700">SC</span>
@@ -420,14 +423,14 @@ export function AppLayout() {
                   <div className="text-sm font-medium text-slate-900">Sarah Chen</div>
                   <div className="text-xs text-slate-500">sarah@acme.com</div>
                 </div>
-                <button className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                <button onClick={() => { navigate('/settings'); setUserOpen(false) }} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
                   <UserCog size={14} className="text-slate-400" /> Profile
                 </button>
-                <button className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                <button onClick={() => { navigate('/settings'); setUserOpen(false) }} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
                   <Settings size={14} className="text-slate-400" /> Settings
                 </button>
                 <div className="border-t border-slate-100 mt-1 pt-1">
-                  <button className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                  <button onClick={() => { navigate('/'); setUserOpen(false) }} className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
                     <Lock size={14} className="text-slate-400" /> Sign Out
                   </button>
                 </div>

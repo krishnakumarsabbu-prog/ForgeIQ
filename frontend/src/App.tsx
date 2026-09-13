@@ -1,4 +1,5 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Link } from 'react-router-dom'
+import { Component, type ReactNode } from 'react'
 import { AppLayout } from './components/layouts/AppLayout'
 import CommandCenter from './pages/CommandCenter'
 import ApplicationsPage from './pages/ApplicationsPage'
@@ -49,8 +50,43 @@ import ApprovalsPage from './pages/ApprovalsPage'
 import IncidentsPage from './pages/IncidentsPage'
 import IncidentDetail from './pages/IncidentDetail'
 
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  state = { hasError: false, error: null as Error | null }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen p-8 text-center">
+          <h1 className="text-lg font-semibold text-slate-900 mb-2">Something went wrong</h1>
+          <p className="text-sm text-slate-500 mb-4 max-w-md">{this.state.error?.message || 'An unexpected error occurred.'}</p>
+          <Link to="/" className="fi-btn-primary" onClick={() => this.setState({ hasError: false, error: null })}>
+            Return to Command Center
+          </Link>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function NotFoundPage() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full p-8 text-center">
+      <h1 className="text-2xl font-bold text-slate-900 mb-2">404</h1>
+      <p className="text-sm text-slate-500 mb-4">The page you are looking for does not exist.</p>
+      <Link to="/" className="fi-btn-primary">Return to Command Center</Link>
+    </div>
+  )
+}
+
 export default function App() {
   return (
+    <ErrorBoundary>
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<CommandCenter />} />
@@ -102,7 +138,9 @@ export default function App() {
         <Route path="/incidents" element={<IncidentsPage />} />
         <Route path="/incidents/:id" element={<IncidentDetail />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
+    </ErrorBoundary>
   )
 }

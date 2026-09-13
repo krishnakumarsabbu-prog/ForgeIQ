@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 
 export interface TimelineEntry {
@@ -88,8 +89,8 @@ export function ConfirmationDialog({
 }) {
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20" onClick={onCancel}>
-      <div className="bg-white rounded-lg shadow-xl border border-slate-200 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/20" onClick={onCancel} role="presentation">
+      <div className="bg-white rounded-lg shadow-xl border border-slate-200 max-w-sm w-full mx-4" onClick={e => e.stopPropagation()} role="alertdialog" aria-label={title} aria-modal="true">
         <div className="px-5 py-4">
           <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
           <p className="text-sm text-slate-500 mt-1.5">{message}</p>
@@ -115,7 +116,7 @@ export function Breadcrumbs({ items }: { items: { label: string; to?: string }[]
         <span key={i} className="flex items-center gap-1">
           {i > 0 && <ChevronRight size={12} className="text-slate-300" />}
           {item.to ? (
-            <a href={item.to} className="hover:text-forgeiq-600">{item.label}</a>
+            <Link to={item.to} className="hover:text-forgeiq-600">{item.label}</Link>
           ) : (
             <span className="text-slate-700 font-medium">{item.label}</span>
           )}
