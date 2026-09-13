@@ -184,3 +184,77 @@ export function usePublishAgent() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
   })
 }
+
+export function useAgentFactoryFull() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.agentFactoryFull,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
+  })
+}
+
+export function useUpdateAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.updateAgent(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
+  })
+}
+
+export function useCloneAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { display_name?: string } }) => apiService.cloneAgent(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
+  })
+}
+
+export function useDeleteAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.deleteAgent,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
+  })
+}
+
+export function useCreateAgentVersion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { changelog: string; system_instructions?: string } }) => apiService.createAgentVersion(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
+  })
+}
+
+export function useRollbackAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: string }) => apiService.rollbackAgent(id, version),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
+  })
+}
+
+export function useDeprecateAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: string }) => apiService.deprecateAgent(id, version),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
+  })
+}
+
+export function useCompareAgentVersions() {
+  return useMutation({
+    mutationFn: ({ id, va, vb }: { id: string; va: string; vb: string }) => apiService.compareAgentVersions(id, va, vb),
+  })
+}
+
+export function useAgentExecutions(id: string) {
+  return useQuery({ queryKey: ['agent-executions', id], queryFn: () => apiService.agentExecutions(id), enabled: !!id })
+}
+
+export function useTestAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { inputs: Record<string, unknown>; context: Record<string, unknown> } }) => apiService.testAgent(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
+  })
+}

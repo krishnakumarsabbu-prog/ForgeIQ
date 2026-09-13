@@ -3,6 +3,7 @@ import type {
   Application, Agent, Skill, Tool, ModelConfiguration, Harness, HarnessTemplate,
   Graph, Loop, Pipeline, Execution, ExecutionEvent, Evidence, EngineeringState,
   Policy, Requirement, Environment, Artifact, Deployment, DashboardData, Tenant, User, Approval,
+  AgentTestResult, AgentVersionComparison, AgentFactoryFullBody, AgentVersion,
 } from '../types'
 
 export const apiService = {
@@ -23,10 +24,19 @@ export const apiService = {
   agents: () => api.get<Agent[]>('/agents'),
   agent: (id: string) => api.get<Agent>(`/agents/${id}`),
   createAgent: (body: unknown) => api.post<Agent>('/agents', body),
+  updateAgent: (id: string, body: unknown) => api.put<Agent>(`/agents/${id}`, body),
+  deleteAgent: (id: string) => api.delete<Record<string, unknown>>(`/agents/${id}`),
   agentFactory: (body: unknown) => api.post<Agent>('/agents/factory', body),
-  agentVersions: (id: string) => api.get<Agent['versions']>(`/agents/${id}/versions`),
-  createAgentVersion: (id: string, changelog: string) => api.post(`/agents/${id}/versions?changelog=${encodeURIComponent(changelog)}`),
+  agentFactoryFull: (body: AgentFactoryFullBody) => api.post<Agent>('/agents/factory/full', body),
+  cloneAgent: (id: string, body: { display_name?: string }) => api.post<Agent>(`/agents/${id}/clone`, body),
+  agentVersions: (id: string) => api.get<AgentVersion[]>(`/agents/${id}/versions`),
+  createAgentVersion: (id: string, body: { changelog: string; system_instructions?: string }) => api.post<AgentVersion>(`/agents/${id}/versions`, body),
   publishAgent: (id: string, version: string) => api.post<Agent>(`/agents/${id}/publish/${version}`),
+  rollbackAgent: (id: string, version: string) => api.post<Agent>(`/agents/${id}/rollback/${version}`),
+  deprecateAgent: (id: string, version: string) => api.post<Agent>(`/agents/${id}/deprecate/${version}`),
+  compareAgentVersions: (id: string, va: string, vb: string) => api.get<AgentVersionComparison>(`/agents/${id}/compare/${va}/${vb}`),
+  agentExecutions: (id: string) => api.get<Execution[]>(`/agents/${id}/executions`),
+  testAgent: (id: string, body: { inputs: Record<string, unknown>; context: Record<string, unknown> }) => api.post<AgentTestResult>(`/agents/${id}/test`, body),
 
   skills: () => api.get<Skill[]>('/skills'),
   skill: (id: string) => api.get<Skill>(`/skills/${id}`),

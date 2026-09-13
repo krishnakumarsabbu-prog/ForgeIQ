@@ -7,6 +7,7 @@ import RequirementsPage from './pages/RequirementsPage'
 import AgentsPage from './pages/AgentsPage'
 import AgentDetail from './pages/AgentDetail'
 import AgentFactoryPage from './pages/AgentFactoryPage'
+import AgentTestWorkspace from './pages/AgentTestWorkspace'
 import SkillsPage from './pages/SkillsPage'
 import ToolsPage from './pages/ToolsPage'
 import ModelsPage from './pages/ModelsPage'
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="/requirements" element={<RequirementsPage />} />
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/agents/:id" element={<AgentDetail />} />
+        <Route path="/agents/:id/test" element={<AgentTestWorkspace />} />
         <Route path="/agent-factory" element={<AgentFactoryPage />} />
         <Route path="/agent-executions" element={<AgentExecutionsPage />} />
         <Route path="/skills" element={<SkillsPage />} />

@@ -120,6 +120,56 @@ export interface Agent {
   created_at: string
 }
 
+export interface AgentTestEvent {
+  step: number
+  phase: string
+  event_type: string
+  message: string
+  status: string
+  data: Record<string, unknown>
+}
+
+export interface AgentTestResult {
+  execution_id: string
+  agent_id: string
+  agent_name: string
+  agent_version: string
+  model: string
+  events: AgentTestEvent[]
+  output: Record<string, unknown>
+  evidence: Record<string, unknown>
+}
+
+export interface AgentVersionComparison {
+  version_a: AgentVersion
+  version_b: AgentVersion
+  differences: Record<string, boolean>
+}
+
+export interface AgentFactoryFullBody {
+  display_name: string
+  purpose: string
+  role: string
+  category: string
+  system_instructions: string
+  skill_ids: string[]
+  tool_ids: string[]
+  model_config_id?: string
+  context_requirements: string[]
+  permissions: string[]
+  security_restrictions: string[]
+  evidence_requirements: string[]
+  max_turns: number
+  timeout_seconds: number
+  token_budget: number
+  cost_budget_cents: number
+  retry_policy: Record<string, unknown>
+  failure_behavior: string
+  input_schema: Record<string, unknown>
+  output_schema: Record<string, unknown>
+  context_contract: Record<string, unknown>
+}
+
 export interface Skill {
   id: string
   name: string
