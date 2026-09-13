@@ -32,6 +32,12 @@ import ReleaseAutomationPage from './pages/ReleaseAutomationPage'
 import DeploymentsPage from './pages/DeploymentsPage'
 import EnvironmentsPage from './pages/EnvironmentsPage'
 import AgentExecutionsPage from './pages/AgentExecutionsPage'
+import HarnessVersionsPage from './pages/HarnessVersionsPage'
+import QualityPage from './pages/QualityPage'
+import SecurityPage from './pages/SecurityPage'
+import EngineeringEconomicsPage from './pages/EngineeringEconomicsPage'
+import PermissionsPage from './pages/PermissionsPage'
+import GovernancePage from './pages/GovernancePage'
 
 export default function App() {
   return (
@@ -68,6 +74,12 @@ export default function App() {
         <Route path="/environments" element={<EnvironmentsPage />} />
         <Route path="/tenants" element={<TenantsPage />} />
         <Route path="/users" element={<UsersRolesPage />} />
+        <Route path="/harness-versions" element={<HarnessVersionsPage />} />
+        <Route path="/quality" element={<QualityPage />} />
+        <Route path="/security" element={<SecurityPage />} />
+        <Route path="/engineering-economics" element={<EngineeringEconomicsPage />} />
+        <Route path="/permissions" element={<PermissionsPage />} />
+        <Route path="/governance" element={<GovernancePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>
