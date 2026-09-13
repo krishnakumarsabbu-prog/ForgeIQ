@@ -675,3 +675,26 @@ export function useTestAgent() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['agents'] }) },
   })
 }
+
+export function useBrownfieldImports() {
+  return useQuery({ queryKey: ['brownfield-imports'], queryFn: apiService.brownfieldImports })
+}
+export function useBrownfieldImport(id: string) {
+  return useQuery({ queryKey: ['brownfield-import', id], queryFn: () => apiService.brownfieldImport(id), enabled: !!id, refetchInterval: 1500 })
+}
+export function useCreateBrownfieldImport() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createBrownfieldImport,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['brownfield-imports'] }) },
+  })
+}
+export function useBrownfieldImportSemanticModel(id: string) {
+  return useQuery({ queryKey: ['brownfield-semantic-model', id], queryFn: () => apiService.brownfieldImportSemanticModel(id), enabled: !!id })
+}
+export function useBrownfieldImportDocumentation(id: string) {
+  return useQuery({ queryKey: ['brownfield-documentation', id], queryFn: () => apiService.brownfieldImportDocumentation(id), enabled: !!id })
+}
+export function useBrownfieldImportRecommendations(id: string) {
+  return useQuery({ queryKey: ['brownfield-recommendations', id], queryFn: () => apiService.brownfieldImportRecommendations(id), enabled: !!id })
+}

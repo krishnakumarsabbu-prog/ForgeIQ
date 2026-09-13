@@ -8,7 +8,7 @@ from .storage.seed import seed_all
 from .api.routes import (
     tenants, applications, agents, skills, tools, models,
     harnesses, graphs, loops, pipelines, executions, evidence,
-    engineering_state, policies, requirements, delivery, semantic,
+    engineering_state, policies, requirements, delivery, semantic, brownfield,
 )
 
 app = FastAPI(
@@ -44,6 +44,7 @@ app.include_router(engineering_state.router, prefix=api_prefix)
 app.include_router(policies.router, prefix=api_prefix)
 app.include_router(delivery.router, prefix=api_prefix)
 app.include_router(semantic.router, prefix=api_prefix)
+app.include_router(brownfield.router, prefix=api_prefix)
 
 
 @app.on_event("startup")

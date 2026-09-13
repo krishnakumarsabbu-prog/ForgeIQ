@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useApplications, useEngineeringStates, useExecutions } from '../hooks/useQueries'
 import { PageHeader, RiskBadge, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
 import type { Application, EngineeringState, Execution } from '../types'
-import { Boxes, Rocket, GitBranch, Shield, Activity, CheckCircle2 } from 'lucide-react'
+import { Boxes, Rocket, GitBranch, Shield, Activity, CheckCircle2, FolderGit2 } from 'lucide-react'
 
 export default function ApplicationsPage() {
   const { data, isLoading } = useApplications()
@@ -29,12 +29,20 @@ export default function ApplicationsPage() {
         title="Applications"
         description="Manage all applications in the ForgeIQ registry"
         actions={
-          <button
-            onClick={() => navigate('/start-engineering')}
-            className="fi-button-primary"
-          >
-            <Rocket className="h-4 w-4" /> Start Engineering
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/brownfield-import')}
+              className="fi-button-secondary"
+            >
+              <FolderGit2 className="h-4 w-4" /> Import Application
+            </button>
+            <button
+              onClick={() => navigate('/start-engineering')}
+              className="fi-button-primary"
+            >
+              <Rocket className="h-4 w-4" /> Start Engineering
+            </button>
+          </div>
         }
       />
 

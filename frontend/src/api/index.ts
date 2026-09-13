@@ -7,6 +7,7 @@ import type {
   Policy, Requirement, Environment, Artifact, Deployment, DashboardData, Tenant, User, Approval,
   AgentTestResult, AgentVersionComparison, AgentFactoryFullBody, AgentVersion,
   EngineeringPlan, PlanStage,
+  BrownfieldImport, BrownfieldSemanticModel, BrownfieldRecommendations,
 } from '../types'
 
 export const apiService = {
@@ -177,4 +178,15 @@ export const apiService = {
   tenants: () => api.get<Tenant[]>('/tenants'),
   tenant: (id: string) => api.get<Tenant>(`/tenants/${id}`),
   tenantUsers: (id: string) => api.get<User[]>(`/tenants/${id}/users`),
+
+  brownfieldImports: () => api.get<BrownfieldImport[]>('/brownfield/imports'),
+  brownfieldImport: (id: string) => api.get<BrownfieldImport>(`/brownfield/imports/${id}`),
+  createBrownfieldImport: (body: {
+    repository_url: string; branch?: string; provider?: string; access_token?: string;
+    application_name?: string; application_display_name?: string; team?: string; tenant_id?: string
+  }) => api.post<BrownfieldImport>('/brownfield/imports', body),
+  brownfieldImportPhases: (id: string) => api.get<BrownfieldImport['phases']>(`/brownfield/imports/${id}/phases`),
+  brownfieldImportSemanticModel: (id: string) => api.get<BrownfieldSemanticModel>(`/brownfield/imports/${id}/semantic-model`),
+  brownfieldImportDocumentation: (id: string) => api.get<Record<string, unknown>>(`/brownfield/imports/${id}/documentation`),
+  brownfieldImportRecommendations: (id: string) => api.get<BrownfieldRecommendations>(`/brownfield/imports/${id}/recommendations`),
 }

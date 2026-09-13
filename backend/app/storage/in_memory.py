@@ -97,7 +97,9 @@ class InMemoryStore:
         self.semantic_relationships: InMemoryTable[SemanticRelationship] = InMemoryTable()
 
         from ..domain.models.engineering_plan import EngineeringPlan
+        from ..domain.models.brownfield_import import BrownfieldImport
         self.engineering_plans: InMemoryTable[EngineeringPlan] = InMemoryTable()
+        self.brownfield_imports: InMemoryTable[BrownfieldImport] = InMemoryTable()
 
 
 store = InMemoryStore()

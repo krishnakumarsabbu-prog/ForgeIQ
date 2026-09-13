@@ -946,6 +946,61 @@ export interface PlanStage {
   status: string
 }
 
+export interface BrownfieldPhase {
+  name: string
+  label: string
+  description: string
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped'
+  started_at?: string
+  completed_at?: string
+  findings: Record<string, unknown>[]
+  warnings: string[]
+  errors: string[]
+  artifacts: string[]
+  summary: string
+}
+
+export interface BrownfieldImportConfig {
+  repository_url: string
+  branch: string
+  provider: string
+  access_token?: string
+  application_name: string
+  application_display_name: string
+  team: string
+  tenant_id: string
+}
+
+export interface BrownfieldImport {
+  id: string
+  config: BrownfieldImportConfig
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  application_id?: string
+  engineering_state_id?: string
+  phases: BrownfieldPhase[]
+  current_phase: string
+  progress: number
+  semantic_model: Record<string, unknown>
+  documentation: Record<string, unknown>
+  recommended_harnesses: Array<{ id: string; name: string; type: string; environment: string; reason: string }>
+  recommended_pipelines: Array<{ id: string; name: string; reason: string; stages: string[] }>
+  error_message?: string
+  started_at?: string
+  completed_at?: string
+  created_at: string
+}
+
+export interface BrownfieldSemanticModel {
+  entities: Array<Record<string, unknown>>
+  relationships: Array<Record<string, unknown>>
+  summary: Record<string, unknown>
+}
+
+export interface BrownfieldRecommendations {
+  harnesses: Array<{ id: string; name: string; type: string; environment: string; reason: string }>
+  pipelines: Array<{ id: string; name: string; reason: string; stages: string[] }>
+}
+
 export interface EngineeringPlan {
   id: string
   application_id: string

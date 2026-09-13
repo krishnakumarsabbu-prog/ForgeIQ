@@ -31,6 +31,7 @@ const navSections: NavSection[] = [
       { to: '/requirements', label: 'Requirements', icon: ListTodo },
       { to: '/applications', label: 'Applications', icon: FolderGit2 },
       { to: '/start-engineering', label: 'Start Engineering', icon: Rocket },
+      { to: '/brownfield-import', label: 'Import Application', icon: FolderGit2 },
       { to: '/pipelines', label: 'Engineering Pipelines', icon: Workflow },
       { to: '/pipeline-templates', label: 'Pipeline Templates', icon: FileLock2 },
       { to: '/executions', label: 'Executions', icon: Activity },
@@ -104,7 +105,7 @@ const createMenuItems = [
   { label: 'Create Agent', to: '/agent-factory', icon: Bot },
   { label: 'Create Harness', to: '/harness-builder', icon: Layers },
   { label: 'Create Pipeline', to: '/pipeline-builder', icon: Workflow },
-  { label: 'Import Application', to: '/applications', icon: FolderGit2 },
+  { label: 'Import Application', to: '/brownfield-import', icon: FolderGit2 },
 ]
 
 function useClickOutside<T extends HTMLElement>(callback: () => void) {
