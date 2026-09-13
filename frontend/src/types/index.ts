@@ -290,6 +290,7 @@ export interface HarnessVersion {
   version: string
   published: boolean
   is_default: boolean
+  deprecated?: boolean
   graph_id?: string
   loop_ids: string[]
   agent_ids: string[]
@@ -322,16 +323,32 @@ export interface Harness {
   policy_ids: string[]
   permissions: string[]
   environment: string
+  execution_rules: Record<string, unknown>
+  retry_rules: Record<string, unknown>
+  failure_rules: Record<string, unknown>
+  approval_rules: Record<string, unknown>
+  escalation_rules: Record<string, unknown>
   cost_limit_cents: number
   time_limit_seconds: number
   approval_required: boolean
+  evidence_requirements: string[]
   current_version: string
   versions: HarnessVersion[]
   template_id?: string
   published: boolean
   application_id?: string
   tags: string[]
+  lifecycle: string
+  deprecated: boolean
+  archived: boolean
+  last_published_at?: string
   created_at: string
+}
+
+export interface HarnessVersionComparison {
+  version_a: HarnessVersion
+  version_b: HarnessVersion
+  differences: Record<string, boolean>
 }
 
 export interface HarnessTemplate {

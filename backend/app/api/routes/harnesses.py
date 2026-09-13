@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from ...storage.in_memory import store
-from ...domain.models.harness import Harness, HarnessVersion, HarnessType
+from ...domain.models.harness import Harness, HarnessVersion, HarnessType, HarnessLifecycle
 from ...domain.models.base import gen_id, utc_now
 
 router = APIRouter(prefix="/harnesses", tags=["harnesses"])
@@ -29,9 +29,20 @@ class HarnessCreate(BaseModel):
     tenant_id: str = "tenant_forgeiq"
 
 
+class CloneBody(BaseModel):
+    display_name: Optional[str] = None
+
+
+class VersionBody(BaseModel):
+    changelog: str = "New version"
+
+
 @router.get("")
-def list_harnesses(tenant_id: str = "tenant_forgeiq"):
-    return store.harnesses.all(tenant_id)
+def list_harnesses(tenant_id: str = "tenant_forgeiq", harness_type: Optional[str] = None):
+    items = store.harnesses.all(tenant_id)
+    if harness_type:
+        items = [h for h in items if h.harness_type.value == harness_type]
+    return items
 
 
 @router.get("/{harness_id}")
@@ -62,6 +73,7 @@ def create_harness(body: HarnessCreate):
         time_limit_seconds=body.time_limit_seconds,
         approval_required=body.approval_required,
         published=False,
+        lifecycle=HarnessLifecycle.DRAFT,
         current_version="v1",
         created_at=utc_now(),
     )
@@ -77,6 +89,7 @@ def create_harness(body: HarnessCreate):
         agent_ids=body.agent_ids,
         skill_ids=body.skill_ids,
         tool_ids=body.tool_ids,
+        model_config_ids=body.model_config_ids,
         environment=body.environment,
         cost_limit_cents=body.cost_limit_cents,
         time_limit_seconds=body.time_limit_seconds,
@@ -89,6 +102,83 @@ def create_harness(body: HarnessCreate):
     return h
 
 
+@router.post("/{harness_id}/clone")
+def clone_harness(harness_id: str, body: CloneBody):
+    h = store.harnesses.get(harness_id)
+    if not h:
+        raise HTTPException(404, "Harness not found")
+    new_name = body.display_name or f"{h.display_name} (Clone)"
+    new_h = Harness(
+        tenant_id=h.tenant_id,
+        id=gen_id("harness_"),
+        name=new_name.lower().replace(" ", "-"),
+        display_name=new_name,
+        purpose=h.purpose,
+        harness_type=h.harness_type,
+        inputs=list(h.inputs),
+        outputs=list(h.outputs),
+        context=dict(h.context),
+        graph_id=h.graph_id,
+        loop_ids=list(h.loop_ids),
+        agent_ids=list(h.agent_ids),
+        skill_ids=list(h.skill_ids),
+        tool_ids=list(h.tool_ids),
+        model_config_ids=list(h.model_config_ids),
+        policy_ids=list(h.policy_ids),
+        permissions=list(h.permissions),
+        environment=h.environment,
+        execution_rules=dict(h.execution_rules),
+        retry_rules=dict(h.retry_rules),
+        failure_rules=dict(h.failure_rules),
+        approval_rules=dict(h.approval_rules),
+        escalation_rules=dict(h.escalation_rules),
+        cost_limit_cents=h.cost_limit_cents,
+        time_limit_seconds=h.time_limit_seconds,
+        approval_required=h.approval_required,
+        evidence_requirements=list(h.evidence_requirements),
+        current_version="v1",
+        template_id=h.template_id,
+        published=False,
+        lifecycle=HarnessLifecycle.DRAFT,
+        tags=list(h.tags),
+        created_at=utc_now(),
+    )
+    v1 = HarnessVersion(
+        tenant_id=h.tenant_id,
+        id=gen_id("hver_"),
+        harness_id=new_h.id,
+        version="v1",
+        published=False,
+        is_default=True,
+        graph_id=h.graph_id,
+        loop_ids=list(h.loop_ids),
+        agent_ids=list(h.agent_ids),
+        skill_ids=list(h.skill_ids),
+        tool_ids=list(h.tool_ids),
+        model_config_ids=list(h.model_config_ids),
+        environment=h.environment,
+        cost_limit_cents=h.cost_limit_cents,
+        time_limit_seconds=h.time_limit_seconds,
+        approval_required=h.approval_required,
+        changelog="Cloned from " + h.display_name,
+        created_at=utc_now(),
+    )
+    new_h.versions = [v1]
+    store.harnesses.add(new_h)
+    return new_h
+
+
+@router.post("/{harness_id}/archive")
+def archive_harness(harness_id: str):
+    h = store.harnesses.get(harness_id)
+    if not h:
+        raise HTTPException(404, "Harness not found")
+    h.archived = True
+    h.lifecycle = HarnessLifecycle.ARCHIVED
+    h.touch()
+    return h
+
+
 @router.get("/{harness_id}/versions")
 def get_harness_versions(harness_id: str):
     h = store.harnesses.get(harness_id)
@@ -98,7 +188,7 @@ def get_harness_versions(harness_id: str):
 
 
 @router.post("/{harness_id}/versions")
-def create_harness_version(harness_id: str, changelog: str = "New version"):
+def create_harness_version(harness_id: str, body: VersionBody):
     h = store.harnesses.get(harness_id)
     if not h:
         raise HTTPException(404, "Harness not found")
@@ -111,16 +201,18 @@ def create_harness_version(harness_id: str, changelog: str = "New version"):
         version=f"v{version_num}",
         published=False,
         is_default=False,
+        deprecated=False,
         graph_id=latest.graph_id if latest else h.graph_id,
         loop_ids=latest.loop_ids if latest else h.loop_ids,
         agent_ids=latest.agent_ids if latest else h.agent_ids,
         skill_ids=latest.skill_ids if latest else h.skill_ids,
         tool_ids=latest.tool_ids if latest else h.tool_ids,
+        model_config_ids=latest.model_config_ids if latest else h.model_config_ids,
         environment=latest.environment if latest else h.environment,
         cost_limit_cents=latest.cost_limit_cents if latest else h.cost_limit_cents,
         time_limit_seconds=latest.time_limit_seconds if latest else h.time_limit_seconds,
         approval_required=latest.approval_required if latest else h.approval_required,
-        changelog=changelog,
+        changelog=body.changelog,
         created_at=utc_now(),
     )
     h.versions.append(new_version)
@@ -136,11 +228,40 @@ def publish_harness_version(harness_id: str, version: str):
         if v.version == version:
             v.published = True
             v.is_default = True
+            v.deprecated = False
             h.current_version = version
             h.published = True
+            h.lifecycle = HarnessLifecycle.PUBLISHED
+            h.last_published_at = utc_now()
         else:
             v.is_default = False
     return h
+
+
+@router.get("/{harness_id}/compare/{va}/{vb}")
+def compare_harness_versions(harness_id: str, va: str, vb: str):
+    h = store.harnesses.get(harness_id)
+    if not h:
+        raise HTTPException(404, "Harness not found")
+    v_a = next((v for v in h.versions if v.version == va), None)
+    v_b = next((v for v in h.versions if v.version == vb), None)
+    if not v_a or not v_b:
+        raise HTTPException(404, "Version not found")
+    fields = [
+        "graph_id", "loop_ids", "agent_ids", "skill_ids", "tool_ids",
+        "model_config_ids", "environment", "cost_limit_cents",
+        "time_limit_seconds", "approval_required", "changelog",
+    ]
+    differences = {}
+    for f in fields:
+        va_val = getattr(v_a, f, None)
+        vb_val = getattr(v_b, f, None)
+        differences[f] = va_val != vb_val
+    return {
+        "version_a": v_a,
+        "version_b": v_b,
+        "differences": differences,
+    }
 
 
 @router.get("/templates/all")

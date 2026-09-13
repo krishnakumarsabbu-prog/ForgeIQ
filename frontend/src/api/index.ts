@@ -1,6 +1,6 @@
 import { api } from './client'
 import type {
-  Application, Agent, Skill, Tool, ModelConfiguration, Harness, HarnessTemplate,
+  Application, Agent, Skill, Tool, ModelConfiguration, Harness, HarnessTemplate, HarnessVersion, HarnessVersionComparison,
   Graph, Loop, Pipeline, Execution, ExecutionEvent, Evidence, EngineeringState,
   Policy, Requirement, Environment, Artifact, Deployment, DashboardData, Tenant, User, Approval,
   AgentTestResult, AgentVersionComparison, AgentFactoryFullBody, AgentVersion,
@@ -62,8 +62,12 @@ export const apiService = {
   harnesses: () => api.get<Harness[]>('/harnesses'),
   harness: (id: string) => api.get<Harness>(`/harnesses/${id}`),
   createHarness: (body: unknown) => api.post<Harness>('/harnesses', body),
-  harnessVersions: (id: string) => api.get<Harness['versions']>(`/harnesses/${id}/versions`),
+  cloneHarness: (id: string, body: { display_name?: string }) => api.post<Harness>(`/harnesses/${id}/clone`, body),
+  archiveHarness: (id: string) => api.post<Harness>(`/harnesses/${id}/archive`),
+  harnessVersions: (id: string) => api.get<HarnessVersion[]>(`/harnesses/${id}/versions`),
+  createHarnessVersion: (id: string, body: { changelog: string }) => api.post<HarnessVersion>(`/harnesses/${id}/versions`, body),
   publishHarness: (id: string, version: string) => api.post<Harness>(`/harnesses/${id}/publish/${version}`),
+  compareHarnessVersions: (id: string, va: string, vb: string) => api.get<HarnessVersionComparison>(`/harnesses/${id}/compare/${va}/${vb}`),
   harnessTemplates: () => api.get<HarnessTemplate[]>('/harnesses/templates/all'),
 
   graphs: () => api.get<Graph[]>('/graphs'),

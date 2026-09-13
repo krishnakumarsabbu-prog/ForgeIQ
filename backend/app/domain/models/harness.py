@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Optional
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from .base import TenantOwned, VersionedEntity, gen_id
+from .base import TenantOwned, VersionedEntity, gen_id, utc_now
 
 
 class HarnessType(str, Enum):
@@ -16,10 +17,20 @@ class HarnessType(str, Enum):
     RELEASE = "release"
     DEPLOYMENT = "deployment"
     VERIFICATION = "verification"
+    OPERATIONS = "operations"
+    REMEDIATION = "remediation"
     ARCHITECTURE = "architecture"
     INCIDENT = "incident"
     BROWNFIELD_DISCOVERY = "brownfield_discovery"
     CUSTOM = "custom"
+
+
+class HarnessLifecycle(str, Enum):
+    DRAFT = "draft"
+    VALIDATED = "validated"
+    PUBLISHED = "published"
+    DEPRECATED = "deprecated"
+    ARCHIVED = "archived"
 
 
 class HarnessVersion(VersionedEntity):
@@ -84,3 +95,7 @@ class Harness(TenantOwned):
     published: bool = False
     application_id: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
+    lifecycle: HarnessLifecycle = HarnessLifecycle.DRAFT
+    deprecated: bool = False
+    archived: bool = False
+    last_published_at: Optional[datetime] = None

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '../api'
+import type { Execution } from '../types'
 
 export function useDashboard() {
   return useQuery({ queryKey: ['dashboard'], queryFn: apiService.dashboard, refetchInterval: 5000 })
@@ -135,6 +136,48 @@ export function useCreateHarness() {
     mutationFn: apiService.createHarness,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['harnesses'] }) },
   })
+}
+
+export function useCloneHarness() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { display_name?: string } }) => apiService.cloneHarness(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harnesses'] }) },
+  })
+}
+
+export function useArchiveHarness() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.archiveHarness,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harnesses'] }) },
+  })
+}
+
+export function useCreateHarnessVersion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { changelog: string } }) => apiService.createHarnessVersion(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harnesses'] }) },
+  })
+}
+
+export function usePublishHarness() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: string }) => apiService.publishHarness(id, version),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harnesses'] }) },
+  })
+}
+
+export function useCompareHarnessVersions() {
+  return useMutation({
+    mutationFn: ({ id, va, vb }: { id: string; va: string; vb: string }) => apiService.compareHarnessVersions(id, va, vb),
+  })
+}
+
+export function useHarnessExecutions(id: string) {
+  return useQuery({ queryKey: ['harness-executions', id], queryFn: () => apiService.executions().then((execs: Execution[]) => execs.filter((e) => e.harness_id === id)), enabled: !!id })
 }
 
 export function useCreatePipeline() {

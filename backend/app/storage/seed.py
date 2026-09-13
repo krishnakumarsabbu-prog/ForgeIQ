@@ -11,7 +11,7 @@ from ..domain.models.agent import Agent, AgentVersion, AgentContract, AgentCateg
 from ..domain.models.skill import Skill, SkillCategory
 from ..domain.models.tool import Tool, ToolRisk
 from ..domain.models.model_config import ModelConfiguration, ModelProvider
-from ..domain.models.harness import Harness, HarnessVersion, HarnessTemplate, HarnessType
+from ..domain.models.harness import Harness, HarnessVersion, HarnessTemplate, HarnessType, HarnessLifecycle
 from ..domain.models.graph import Graph, GraphNode, GraphEdge, GraphNodeType
 from ..domain.models.loop import Loop, LoopType
 from ..domain.models.pipeline import Pipeline, PipelineStage, PipelineStageType
@@ -604,19 +604,22 @@ def _seed_harnesses() -> None:
     loops = {l.name: l.id for l in store.loops.all()}
 
     harnesses_data = [
-        ("Development Harness", "development-harness", HarnessType.DEVELOPMENT, "Governed development execution from requirement to tested code", "development-graph", ["test-fix-loop", "validation-loop"], ["requirement-analyst", "solution-architect", "senior-coding-agent", "code-reviewer", "test-generator"], ["react-typescript", "fastapi", "spring-boot"], ["git", "filesystem", "terminal", "npm", "python"], "development", 5000, 3600, False),
-        ("Testing Harness", "testing-harness", HarnessType.TESTING, "Comprehensive test execution with coverage analysis", "development-graph", ["test-fix-loop", "retry-loop"], ["test-generator", "code-reviewer"], ["pytest", "junit", "playwright", "api-testing"], ["python", "npm", "maven", "gradle"], "development", 2000, 1800, False),
-        ("Security Harness", "security-harness", HarnessType.SECURITY, "Security scanning and vulnerability assessment with remediation", "security-graph", ["security-remediation-loop"], ["security-analyst"], ["sast", "dependency-analysis", "secret-detection"], ["sast-scanner", "dependency-scanner"], "development", 3000, 1800, False),
-        ("Build Harness", "build-harness", HarnessType.BUILD, "Build automation and artifact creation", "development-graph", ["retry-loop"], ["build-engineer"], ["build-automation"], ["build-runner", "npm", "maven", "gradle"], "staging", 2000, 1800, False),
-        ("Release Harness", "release-harness", HarnessType.RELEASE, "Release planning with change impact analysis and approval gates", "development-graph", ["validation-loop"], ["release-planner", "release-notes-writer"], ["git", "release-management"], ["git", "jira"], "staging", 1000, 900, True),
-        ("Deployment Harness", "deployment-harness", HarnessType.DEPLOYMENT, "Production deployment with verification and rollback capability", "deployment-graph", ["deployment-verification-loop", "rollback-loop"], ["deployment-engineer", "verification-agent"], ["kubernetes", "deployment"], ["kubernetes", "deployment-api"], "production", 5000, 3600, True),
-        ("Verification Harness", "verification-harness", HarnessType.VERIFICATION, "Post-deployment verification with health checks and smoke tests", "deployment-graph", ["retry-loop"], ["verification-agent"], ["production-verification"], ["kubernetes", "terminal"], "production", 1000, 600, False),
-        ("Incident Remediation Harness", "incident-remediation-harness", HarnessType.INCIDENT, "Production incident analysis and remediation with rollback", "deployment-graph", ["incident-remediation-loop", "rollback-loop"], ["incident-analyst", "root-cause-analyst", "remediation-agent"], ["observability", "incident-analysis", "root-cause-analysis"], ["terminal", "kubernetes", "observability-api"], "production", 10000, 7200, True),
-        ("Brownfield Discovery Harness", "brownfield-discovery-harness", HarnessType.BROWNFIELD_DISCOVERY, "Repository discovery and semantic model building for existing codebases", "development-graph", ["retry-loop"], ["solution-architect", "code-reviewer"], ["git", "code-review"], ["git", "filesystem", "terminal"], "development", 3000, 3600, False),
-        ("Architecture Harness", "architecture-harness", HarnessType.ARCHITECTURE, "Architecture analysis and design with technology selection", "development-graph", ["validation-loop"], ["solution-architect", "requirement-analyst"], ["react-typescript", "spring-boot", "fastapi"], ["git", "filesystem"], "development", 3000, 1800, False),
+        ("Development Harness", "development-harness", HarnessType.DEVELOPMENT, "Governed development execution from requirement to tested code", "development-graph", ["test-fix-loop", "validation-loop"], ["requirement-analyst", "solution-architect", "senior-coding-agent", "code-reviewer", "test-generator"], ["react-typescript", "fastapi", "spring-boot"], ["git", "filesystem", "terminal", "npm", "python"], "development", 5000, 3600, False, HarnessLifecycle.PUBLISHED),
+        ("Testing Harness", "testing-harness", HarnessType.TESTING, "Comprehensive test execution with coverage analysis", "development-graph", ["test-fix-loop", "retry-loop"], ["test-generator", "code-reviewer"], ["pytest", "junit", "playwright", "api-testing"], ["python", "npm", "maven", "gradle"], "development", 2000, 1800, False, HarnessLifecycle.PUBLISHED),
+        ("Security Harness", "security-harness", HarnessType.SECURITY, "Security scanning and vulnerability assessment with remediation", "security-graph", ["security-remediation-loop"], ["security-analyst"], ["sast", "dependency-analysis", "secret-detection"], ["sast-scanner", "dependency-scanner"], "development", 3000, 1800, False, HarnessLifecycle.PUBLISHED),
+        ("Build Harness", "build-harness", HarnessType.BUILD, "Build automation and artifact creation", "development-graph", ["retry-loop"], ["build-engineer"], ["build-automation"], ["build-runner", "npm", "maven", "gradle"], "staging", 2000, 1800, False, HarnessLifecycle.PUBLISHED),
+        ("Release Harness", "release-harness", HarnessType.RELEASE, "Release planning with change impact analysis and approval gates", "development-graph", ["validation-loop"], ["release-planner", "release-notes-writer"], ["git", "release-management"], ["git", "jira"], "staging", 1000, 900, True, HarnessLifecycle.PUBLISHED),
+        ("Deployment Harness", "deployment-harness", HarnessType.DEPLOYMENT, "Production deployment with verification and rollback capability", "deployment-graph", ["deployment-verification-loop", "rollback-loop"], ["deployment-engineer", "verification-agent"], ["kubernetes", "deployment"], ["kubernetes", "deployment-api"], "production", 5000, 3600, True, HarnessLifecycle.PUBLISHED),
+        ("Verification Harness", "verification-harness", HarnessType.VERIFICATION, "Post-deployment verification with health checks and smoke tests", "deployment-graph", ["retry-loop"], ["verification-agent"], ["production-verification"], ["kubernetes", "terminal"], "production", 1000, 600, False, HarnessLifecycle.PUBLISHED),
+        ("Operations Harness", "operations-harness", HarnessType.OPERATIONS, "Production observability and operational health monitoring", "deployment-graph", ["retry-loop"], ["incident-analyst", "verification-agent"], ["observability", "production-verification"], ["observability-api", "kubernetes"], "production", 3000, 1800, False, HarnessLifecycle.PUBLISHED),
+        ("Remediation Harness", "remediation-harness", HarnessType.REMEDIATION, "Automated incident remediation with fix, test, and verify cycle", "deployment-graph", ["incident-remediation-loop", "rollback-loop"], ["remediation-agent", "root-cause-analyst", "test-generator"], ["remediation", "root-cause-analysis", "pytest"], ["terminal", "python", "kubernetes"], "production", 8000, 5400, True, HarnessLifecycle.VALIDATED),
+        ("Incident Remediation Harness", "incident-remediation-harness", HarnessType.INCIDENT, "Production incident analysis and remediation with rollback", "deployment-graph", ["incident-remediation-loop", "rollback-loop"], ["incident-analyst", "root-cause-analyst", "remediation-agent"], ["observability", "incident-analysis", "root-cause-analysis"], ["terminal", "kubernetes", "observability-api"], "production", 10000, 7200, True, HarnessLifecycle.PUBLISHED),
+        ("Brownfield Discovery Harness", "brownfield-discovery-harness", HarnessType.BROWNFIELD_DISCOVERY, "Repository discovery and semantic model building for existing codebases", "development-graph", ["retry-loop"], ["solution-architect", "code-reviewer"], ["git", "code-review"], ["git", "filesystem", "terminal"], "development", 3000, 3600, False, HarnessLifecycle.PUBLISHED),
+        ("Architecture Harness", "architecture-harness", HarnessType.ARCHITECTURE, "Architecture analysis and design with technology selection", "development-graph", ["validation-loop"], ["solution-architect", "requirement-analyst"], ["react-typescript", "spring-boot", "fastapi"], ["git", "filesystem"], "development", 3000, 1800, False, HarnessLifecycle.DEPRECATED),
+        ("Custom CI Harness", "custom-ci-harness", HarnessType.CUSTOM, "Custom continuous integration harness for specialized build pipelines", "development-graph", ["retry-loop"], ["build-engineer", "code-reviewer"], ["build-automation", "code-review"], ["build-runner", "npm"], "staging", 1500, 1200, False, HarnessLifecycle.DRAFT),
     ]
 
-    for name, slug, htype, purpose, graph_name, loop_names, agent_names, skill_names, tool_names, env, cost, time_limit, approval in harnesses_data:
+    for name, slug, htype, purpose, graph_name, loop_names, agent_names, skill_names, tool_names, env, cost, time_limit, approval, lifecycle in harnesses_data:
         h = Harness(
             tenant_id=TENANT_ID,
             id=gen_id("harness_"),
@@ -636,6 +639,7 @@ def _seed_harnesses() -> None:
             approval_required=approval,
             approval_rules={"required": approval, "approvers": ["engineering_lead", "security_engineer"] if approval else []},
             published=True,
+            lifecycle=lifecycle,
             current_version="v1",
             created_at=_ts(4000),
         )
