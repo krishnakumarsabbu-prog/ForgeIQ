@@ -11,7 +11,10 @@ from ..domain.models.agent import Agent, AgentVersion, AgentContract, AgentCateg
 from ..domain.models.skill import Skill, SkillCategory
 from ..domain.models.tool import Tool, ToolRisk
 from ..domain.models.model_config import ModelConfiguration, ModelProvider
-from ..domain.models.harness import Harness, HarnessVersion, HarnessTemplate, HarnessType, HarnessLifecycle
+from ..domain.models.harness import (
+    Harness, HarnessVersion, HarnessTemplate, HarnessTemplateVersion,
+    HarnessType, HarnessLifecycle, TemplateInheritanceLevel,
+)
 from ..domain.models.graph import Graph, GraphNode, GraphEdge, GraphNodeType, GraphEdgeType, GraphMetadata, GraphVersion
 from ..domain.models.loop import Loop, LoopType, LoopStep, LoopStepType, BackoffStrategy, FailureHandling, EscalationType
 from ..runtime.loop_engine import LoopEngine
@@ -769,12 +772,15 @@ def _seed_harnesses() -> None:
             version="v1",
             published=True,
             is_default=True,
+            is_immutable=True,
+            published_at=_ts(4000),
             graph_id=h.graph_id,
             loop_ids=h.loop_ids,
             agent_ids=h.agent_ids,
             skill_ids=h.skill_ids,
             tool_ids=h.tool_ids,
             model_config_ids=h.model_config_ids,
+            policy_ids=h.policy_ids,
             environment=h.environment,
             cost_limit_cents=cost,
             time_limit_seconds=time_limit,
@@ -789,12 +795,15 @@ def _seed_harnesses() -> None:
             version="v2",
             published=True,
             is_default=False,
+            is_immutable=True,
+            published_at=_ts(2000),
             graph_id=h.graph_id,
             loop_ids=h.loop_ids,
             agent_ids=h.agent_ids,
             skill_ids=h.skill_ids,
             tool_ids=h.tool_ids,
             model_config_ids=h.model_config_ids,
+            policy_ids=h.policy_ids,
             environment=h.environment,
             cost_limit_cents=cost,
             time_limit_seconds=time_limit,
@@ -808,12 +817,15 @@ def _seed_harnesses() -> None:
 
 def _seed_harness_templates() -> None:
     templates_data = [
-        ("Production Release Template", "production-release", "Mandatory production release workflow with security, testing, approval, and verification gates", HarnessType.RELEASE, ["security_scan", "tests_pass", "artifact_exists", "approval_required", "deployment_verification", "rollback_capability"], ["release_notes", "notifications"], ["cost_limit", "time_limit", "environment"], True, ["mandatory_steps"]),
-        ("Greenfield Development Template", "greenfield-dev", "Standard greenfield development from requirement to deployment", HarnessType.DEVELOPMENT, ["requirement_analysis", "architecture", "coding", "testing"], ["security_scan", "code_review"], ["agent_selection", "model_selection", "environment"], True, []),
-        ("Brownfield Discovery Template", "brownfield-discovery", "Repository discovery and semantic model building", HarnessType.BROWNFIELD_DISCOVERY, ["repository_clone", "tech_detection", "semantic_model"], ["wiki_generation", "documentation"], ["depth", "scope"], True, []),
-        ("Incident Response Template", "incident-response", "Production incident response with rollback and remediation", HarnessType.INCIDENT, ["incident_detection", "root_cause", "remediation", "verification"], ["rollback", "notifications"], ["severity_threshold", "auto_remediate"], False, ["mandatory_steps", "approval_required"]),
+        ("Production Release Template", "production-release", "Mandatory production release workflow with security, testing, approval, and verification gates", HarnessType.RELEASE, ["security_scan", "tests_pass", "artifact_exists", "approval_required", "deployment_verification", "rollback_capability", "evidence"], ["release_notes", "notifications"], ["cost_limit", "time_limit", "environment"], True, ["mandatory_steps"], TemplateInheritanceLevel.PLATFORM, None),
+        ("Greenfield Development Template", "greenfield-dev", "Standard greenfield development from requirement to deployment", HarnessType.DEVELOPMENT, ["requirement_analysis", "architecture", "coding", "testing"], ["security_scan", "code_review"], ["agent_selection", "model_selection", "environment"], True, [], TemplateInheritanceLevel.PLATFORM, None),
+        ("Brownfield Discovery Template", "brownfield-discovery", "Repository discovery and semantic model building", HarnessType.BROWNFIELD_DISCOVERY, ["repository_clone", "tech_detection", "semantic_model"], ["wiki_generation", "documentation"], ["depth", "scope"], True, [], TemplateInheritanceLevel.PLATFORM, None),
+        ("Incident Response Template", "incident-response", "Production incident response with rollback and remediation", HarnessType.INCIDENT, ["incident_detection", "root_cause", "remediation", "verification"], ["rollback", "notifications"], ["severity_threshold", "auto_remediate"], False, ["mandatory_steps", "approval_required"], TemplateInheritanceLevel.PLATFORM, None),
+        ("CI/CD Pipeline Template", "ci-cd-pipeline", "Continuous integration and delivery pipeline with build, test, and deploy gates", HarnessType.BUILD, ["build_pass", "tests_pass", "artifact_exists"], ["security_scan", "code_review"], ["build_tool", "test_framework", "environment"], True, [], TemplateInheritanceLevel.PLATFORM, None),
+        ("Security Audit Template", "security-audit", "Comprehensive security audit with SAST, SCA, and secret detection", HarnessType.SECURITY, ["sast_scan", "dependency_scan", "secret_detection", "evidence"], ["remediation", "reporting"], ["scanner_config", "severity_threshold"], True, ["mandatory_steps"], TemplateInheritanceLevel.PLATFORM, None),
     ]
-    for name, slug, desc, htype, mandatory, optional, configurable, override_allowed, forbidden in templates_data:
+    created_templates: dict[str, str] = {}
+    for name, slug, desc, htype, mandatory, optional, configurable, override_allowed, forbidden, level, parent_id in templates_data:
         t = HarnessTemplate(
             tenant_id=TENANT_ID,
             id=gen_id("htmpl_"),
@@ -821,14 +833,99 @@ def _seed_harness_templates() -> None:
             display_name=name,
             description=desc,
             harness_type=htype,
+            inheritance_level=level,
+            parent_template_id=parent_id,
             mandatory_steps=mandatory,
             optional_steps=optional,
             configurable=configurable,
             tenant_override_allowed=override_allowed,
             tenant_override_forbidden=forbidden,
             default_config={"cost_limit_cents": 5000, "time_limit_seconds": 3600},
+            current_version="v1",
+            published=True,
+            last_published_at=_ts(5000),
             created_at=_ts(6000),
         )
+        v1 = HarnessTemplateVersion(
+            tenant_id=TENANT_ID,
+            id=gen_id("htver_"),
+            template_id=t.id,
+            version="v1",
+            published=True,
+            is_default=True,
+            is_immutable=True,
+            mandatory_steps=list(mandatory),
+            optional_steps=list(optional),
+            configurable=list(configurable),
+            tenant_override_allowed=override_allowed,
+            tenant_override_forbidden=list(forbidden),
+            default_config={"cost_limit_cents": 5000, "time_limit_seconds": 3600},
+            changelog="Initial version",
+            created_at=_ts(6000),
+        )
+        v2 = HarnessTemplateVersion(
+            tenant_id=TENANT_ID,
+            id=gen_id("htver_"),
+            template_id=t.id,
+            version="v2",
+            published=True,
+            is_default=False,
+            is_immutable=True,
+            mandatory_steps=list(mandatory),
+            optional_steps=list(optional) + (["evidence"] if "evidence" not in optional and "evidence" not in mandatory else []),
+            configurable=list(configurable),
+            tenant_override_allowed=override_allowed,
+            tenant_override_forbidden=list(forbidden),
+            default_config={"cost_limit_cents": 5000, "time_limit_seconds": 3600},
+            changelog="Enhanced evidence requirements and optional steps",
+            created_at=_ts(3000),
+        )
+        t.versions = [v1, v2]
+        t.current_version = "v2"
+        store.harness_templates.add(t)
+        created_templates[slug] = t.id
+
+    # Create tenant-level inherited template
+    tenant_parent = created_templates.get("production-release")
+    if tenant_parent:
+        t = HarnessTemplate(
+            tenant_id=TENANT_ID,
+            id=gen_id("htmpl_"),
+            name="tenant-production-release",
+            display_name="Tenant Production Release (Customized)",
+            description="Tenant-customized production release template inheriting from platform template",
+            harness_type=HarnessType.RELEASE,
+            inheritance_level=TemplateInheritanceLevel.TENANT,
+            parent_template_id=tenant_parent,
+            mandatory_steps=["security_scan", "tests_pass", "artifact_exists", "approval_required", "deployment_verification", "rollback_capability", "evidence"],
+            optional_steps=["release_notes", "notifications", "slack_alert"],
+            configurable=["cost_limit", "time_limit", "environment"],
+            tenant_override_allowed=True,
+            tenant_override_forbidden=["mandatory_steps"],
+            default_config={"cost_limit_cents": 8000, "time_limit_seconds": 5400},
+            current_version="v1",
+            published=True,
+            last_published_at=_ts(2000),
+            created_at=_ts(3000),
+        )
+        tv1 = HarnessTemplateVersion(
+            tenant_id=TENANT_ID,
+            id=gen_id("htver_"),
+            template_id=t.id,
+            version="v1",
+            published=True,
+            is_default=True,
+            is_immutable=True,
+            mandatory_steps=t.mandatory_steps,
+            optional_steps=t.optional_steps,
+            configurable=t.configurable,
+            tenant_override_allowed=True,
+            tenant_override_forbidden=t.tenant_override_forbidden,
+            default_config=t.default_config,
+            changelog="Tenant customization of platform production release template",
+            created_at=_ts(3000),
+        )
+        t.versions = [tv1]
         store.harness_templates.add(t)
 
 

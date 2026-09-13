@@ -1,6 +1,7 @@
 import { api } from './client'
 import type {
-  Application, Agent, Skill, Tool, ModelConfiguration, Harness, HarnessTemplate, HarnessVersion, HarnessVersionComparison,
+  Application, Agent, Skill, Tool, ModelConfiguration, Harness, HarnessTemplate, HarnessTemplateVersion,
+  HarnessTemplateComparison, TemplateInheritanceChain, HarnessVersion, HarnessVersionComparison,
   Graph, GraphValidation, GraphNode, GraphEdge, GraphVersion, GraphSerialization, GraphExecutionResult, Loop, LoopStep,
   Pipeline, Execution, ExecutionEvent, Evidence, EngineeringState,
   Policy, Requirement, Environment, Artifact, Deployment, DashboardData, Tenant, User, Approval,
@@ -71,6 +72,17 @@ export const apiService = {
   publishHarness: (id: string, version: string) => api.post<Harness>(`/harnesses/${id}/publish/${version}`),
   compareHarnessVersions: (id: string, va: string, vb: string) => api.get<HarnessVersionComparison>(`/harnesses/${id}/compare/${va}/${vb}`),
   harnessTemplates: () => api.get<HarnessTemplate[]>('/harnesses/templates/all'),
+  harnessTemplate: (id: string) => api.get<HarnessTemplate>(`/harnesses/templates/${id}`),
+  createHarnessTemplate: (body: unknown) => api.post<HarnessTemplate>('/harnesses/templates', body),
+  updateHarnessTemplate: (id: string, body: unknown) => api.put<HarnessTemplate>(`/harnesses/templates/${id}`, body),
+  publishHarnessTemplate: (id: string, version: string) => api.post<HarnessTemplate>(`/harnesses/templates/${id}/publish/${version}`),
+  harnessTemplateVersions: (id: string) => api.get<HarnessTemplateVersion[]>(`/harnesses/templates/${id}/versions`),
+  createHarnessTemplateVersion: (id: string, body: { changelog: string }) => api.post<HarnessTemplateVersion>(`/harnesses/templates/${id}/versions`, body),
+  compareHarnessTemplateVersions: (id: string, va: string, vb: string) => api.get<HarnessTemplateComparison>(`/harnesses/templates/${id}/compare/${va}/${vb}`),
+  getTemplateInheritance: (id: string) => api.get<TemplateInheritanceChain>(`/harnesses/templates/${id}/inheritance`),
+  instantiateTemplate: (id: string, body: { display_name: string; overrides?: Record<string, unknown> }) => api.post<Harness>(`/harnesses/templates/${id}/instantiate`, body),
+  rollbackHarness: (id: string, version: string) => api.post<Harness>(`/harnesses/${id}/rollback/${version}`),
+  deprecateHarnessVersion: (id: string, version: string) => api.post<Harness>(`/harnesses/${id}/deprecate/${version}`),
 
   graphs: () => api.get<Graph[]>('/graphs'),
   graph: (id: string) => api.get<Graph>(`/graphs/${id}`),

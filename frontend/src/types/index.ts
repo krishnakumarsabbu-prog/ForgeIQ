@@ -412,12 +412,19 @@ export interface HarnessVersion {
   published: boolean
   is_default: boolean
   deprecated?: boolean
+  is_immutable?: boolean
+  published_at?: string
   graph_id?: string
+  graph_version?: string
   loop_ids: string[]
+  loop_versions?: string[]
   agent_ids: string[]
+  agent_contract_versions?: string[]
   skill_ids: string[]
   tool_ids: string[]
   model_config_ids: string[]
+  policy_ids: string[]
+  policy_versions?: string[]
   environment: string
   cost_limit_cents: number
   time_limit_seconds: number
@@ -456,6 +463,7 @@ export interface Harness {
   current_version: string
   versions: HarnessVersion[]
   template_id?: string
+  template_version?: string
   published: boolean
   application_id?: string
   tags: string[]
@@ -470,6 +478,45 @@ export interface HarnessVersionComparison {
   version_a: HarnessVersion
   version_b: HarnessVersion
   differences: Record<string, boolean>
+  detailed_diff: Record<string, { version_a: unknown; version_b: unknown }>
+  resolved: {
+    version_a: {
+      graph: { id: string; name: string } | null
+      agents: { id: string; name: string }[]
+      tools: { id: string; name: string }[]
+      skills: { id: string; name: string }[]
+      loops: { id: string; name: string }[]
+      policies: { id: string; name: string }[]
+      models: { id: string; name: string }[]
+    }
+    version_b: {
+      graph: { id: string; name: string } | null
+      agents: { id: string; name: string }[]
+      tools: { id: string; name: string }[]
+      skills: { id: string; name: string }[]
+      loops: { id: string; name: string }[]
+      policies: { id: string; name: string }[]
+      models: { id: string; name: string }[]
+    }
+  }
+}
+
+export interface HarnessTemplateVersion {
+  id: string
+  template_id: string
+  version: string
+  published: boolean
+  is_default: boolean
+  deprecated: boolean
+  is_immutable: boolean
+  mandatory_steps: string[]
+  optional_steps: string[]
+  configurable: string[]
+  tenant_override_allowed: boolean
+  tenant_override_forbidden: string[]
+  default_config: Record<string, unknown>
+  changelog: string
+  created_at: string
 }
 
 export interface HarnessTemplate {
@@ -478,12 +525,43 @@ export interface HarnessTemplate {
   display_name: string
   description: string
   harness_type: string
+  inheritance_level: string
+  parent_template_id?: string
   mandatory_steps: string[]
   optional_steps: string[]
   configurable: string[]
   tenant_override_allowed: boolean
   tenant_override_forbidden: string[]
+  default_config: Record<string, unknown>
+  current_version: string
+  versions: HarnessTemplateVersion[]
+  published: boolean
+  deprecated: boolean
+  last_published_at?: string
   created_at: string
+}
+
+export interface HarnessTemplateComparison {
+  version_a: HarnessTemplateVersion
+  version_b: HarnessTemplateVersion
+  differences: Record<string, boolean>
+  detailed_diff: Record<string, { version_a: unknown; version_b: unknown }>
+}
+
+export interface TemplateInheritanceChain {
+  template_id: string
+  chain: Array<{
+    id: string
+    name: string
+    inheritance_level: string
+    mandatory_steps: string[]
+    tenant_override_allowed: boolean
+    tenant_override_forbidden: string[]
+    current_version: string
+    published: boolean
+  }>
+  depth: number
+  governance_enforced: boolean
 }
 
 export interface PipelineStage {

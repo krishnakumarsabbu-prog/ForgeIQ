@@ -45,6 +45,69 @@ export function useHarness(id: string) {
 export function useHarnessTemplates() {
   return useQuery({ queryKey: ['harness-templates'], queryFn: apiService.harnessTemplates })
 }
+export function useHarnessTemplate(id: string) {
+  return useQuery({ queryKey: ['harness-template', id], queryFn: () => apiService.harnessTemplate(id), enabled: !!id })
+}
+export function useCreateHarnessTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createHarnessTemplate,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harness-templates'] }) },
+  })
+}
+export function useUpdateHarnessTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.updateHarnessTemplate(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harness-templates'] }) },
+  })
+}
+export function usePublishHarnessTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: string }) => apiService.publishHarnessTemplate(id, version),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harness-templates'] }) },
+  })
+}
+export function useHarnessTemplateVersions(id: string) {
+  return useQuery({ queryKey: ['harness-template-versions', id], queryFn: () => apiService.harnessTemplateVersions(id), enabled: !!id })
+}
+export function useCreateHarnessTemplateVersion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { changelog: string } }) => apiService.createHarnessTemplateVersion(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harness-templates'] }) },
+  })
+}
+export function useCompareHarnessTemplateVersions() {
+  return useMutation({
+    mutationFn: ({ id, va, vb }: { id: string; va: string; vb: string }) => apiService.compareHarnessTemplateVersions(id, va, vb),
+  })
+}
+export function useTemplateInheritance(id: string) {
+  return useQuery({ queryKey: ['template-inheritance', id], queryFn: () => apiService.getTemplateInheritance(id), enabled: !!id })
+}
+export function useInstantiateTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { display_name: string; overrides?: Record<string, unknown> } }) => apiService.instantiateTemplate(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harnesses'] }) },
+  })
+}
+export function useRollbackHarness() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: string }) => apiService.rollbackHarness(id, version),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harnesses'] }) },
+  })
+}
+export function useDeprecateHarnessVersion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: string }) => apiService.deprecateHarnessVersion(id, version),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['harnesses'] }) },
+  })
+}
 
 export function useGraphs() {
   return useQuery({ queryKey: ['graphs'], queryFn: apiService.graphs })

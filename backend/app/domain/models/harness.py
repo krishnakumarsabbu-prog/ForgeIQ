@@ -36,18 +36,51 @@ class HarnessLifecycle(str, Enum):
 class HarnessVersion(VersionedEntity):
     harness_id: str
     graph_id: Optional[str] = None
+    graph_version: Optional[str] = None
     loop_ids: list[str] = Field(default_factory=list)
+    loop_versions: list[str] = Field(default_factory=list)
     agent_ids: list[str] = Field(default_factory=list)
+    agent_contract_versions: list[str] = Field(default_factory=list)
     skill_ids: list[str] = Field(default_factory=list)
     tool_ids: list[str] = Field(default_factory=list)
     model_config_ids: list[str] = Field(default_factory=list)
     policy_ids: list[str] = Field(default_factory=list)
+    policy_versions: list[str] = Field(default_factory=list)
     environment: str = "development"
     cost_limit_cents: int = 10000
     time_limit_seconds: int = 3600
     approval_required: bool = False
     changelog: str = ""
     is_default: bool = False
+    is_immutable: bool = False
+    published_at: Optional[datetime] = None
+
+
+class TemplateControl(str, Enum):
+    REQUIRED = "required"
+    OPTIONAL = "optional"
+    CONFIGURABLE = "configurable"
+
+
+class TemplateInheritanceLevel(str, Enum):
+    PLATFORM = "platform"
+    TENANT = "tenant"
+    HARNESS = "harness"
+
+
+class HarnessTemplateVersion(VersionedEntity):
+    template_id: str
+    version: str
+    published: bool = False
+    is_default: bool = False
+    changelog: str = ""
+    mandatory_steps: list[str] = Field(default_factory=list)
+    optional_steps: list[str] = Field(default_factory=list)
+    configurable: list[str] = Field(default_factory=list)
+    tenant_override_allowed: bool = True
+    tenant_override_forbidden: list[str] = Field(default_factory=list)
+    default_config: dict = Field(default_factory=dict)
+    is_immutable: bool = False
 
 
 class HarnessTemplate(TenantOwned):
@@ -55,12 +88,19 @@ class HarnessTemplate(TenantOwned):
     display_name: str
     description: str = ""
     harness_type: HarnessType = HarnessType.CUSTOM
+    inheritance_level: TemplateInheritanceLevel = TemplateInheritanceLevel.PLATFORM
+    parent_template_id: Optional[str] = None
     mandatory_steps: list[str] = Field(default_factory=list)
     optional_steps: list[str] = Field(default_factory=list)
     configurable: list[str] = Field(default_factory=list)
     tenant_override_allowed: bool = True
     tenant_override_forbidden: list[str] = Field(default_factory=list)
     default_config: dict = Field(default_factory=dict)
+    current_version: str = "v1"
+    versions: list[HarnessTemplateVersion] = Field(default_factory=list)
+    published: bool = False
+    deprecated: bool = False
+    last_published_at: Optional[datetime] = None
 
 
 class Harness(TenantOwned):
@@ -92,6 +132,7 @@ class Harness(TenantOwned):
     current_version: str = "v1"
     versions: list[HarnessVersion] = Field(default_factory=list)
     template_id: Optional[str] = None
+    template_version: Optional[str] = None
     published: bool = False
     application_id: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
