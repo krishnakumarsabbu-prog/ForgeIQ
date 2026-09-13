@@ -28,6 +28,10 @@ class EventType(str, Enum):
     APPROVAL_REQUESTED = "ApprovalRequested"
     APPROVAL_GRANTED = "ApprovalGranted"
     APPROVAL_REJECTED = "ApprovalRejected"
+    APPROVAL_CHANGES_REQUESTED = "ApprovalChangesRequested"
+    APPROVAL_ESCALATED = "ApprovalEscalated"
+    EXECUTION_WAITING = "ExecutionWaitingForApproval"
+    EXECUTION_RESUMED = "ExecutionResumed"
     EVIDENCE_CREATED = "EvidenceCreated"
     GRAPH_NODE_COMPLETED = "GraphNodeCompleted"
     HARNESS_COMPLETED = "HarnessCompleted"
@@ -50,18 +54,57 @@ class ExecutionEvent(BaseModel):
     data: dict = Field(default_factory=dict)
 
 
+class ApprovalType(str, Enum):
+    CODE_CHANGE = "code_change"
+    SECURITY_EXCEPTION = "security_exception"
+    PRODUCTION_DEPLOYMENT = "production_deployment"
+    HIGH_RISK_CHANGE = "high_risk_change"
+    RELEASE = "release"
+    POLICY_OVERRIDE = "policy_override"
+    FAILURE_ESCALATION = "failure_escalation"
+    HUMAN_TASK = "human_task"
+
+
+class ApprovalStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    CHANGES_REQUESTED = "changes_requested"
+    ESCALATED = "escalated"
+
+
+class EscalationTarget(str, Enum):
+    ENGINEERING_LEAD = "engineering_lead"
+    SECURITY_ENGINEER = "security_engineer"
+    RELEASE_MANAGER = "release_manager"
+    OPERATOR = "operator"
+    ADMINISTRATOR = "administrator"
+
+
 class Approval(TenantOwned):
     execution_id: str
     node_id: Optional[str] = None
     harness_id: Optional[str] = None
     pipeline_id: Optional[str] = None
+    application_id: Optional[str] = None
+    approval_type: str = ApprovalType.HIGH_RISK_CHANGE.value
     requested_by: str = ""
     requested_at: str = Field(default_factory=lambda: utc_now().isoformat())
-    status: str = "pending"
+    status: str = ApprovalStatus.PENDING.value
     decided_by: Optional[str] = None
     decided_at: Optional[str] = None
+    decision: Optional[str] = None
     reason: str = ""
     risk_level: str = "MEDIUM"
+    requested_action: str = ""
+    impact: str = ""
+    evidence_id: Optional[str] = None
+    escalated_to: Optional[str] = None
+    escalated_from_id: Optional[str] = None
+    checkpoint_node_id: Optional[str] = None
+    checkpoint_harness_id: Optional[str] = None
+    checkpoint_pipeline_id: Optional[str] = None
+    checkpoint_stage_index: Optional[int] = None
 
 
 class Execution(TenantOwned):
@@ -85,3 +128,4 @@ class Execution(TenantOwned):
     error_message: Optional[str] = None
     progress: float = 0.0
     result: dict = Field(default_factory=dict)
+    waiting_approval_id: Optional[str] = None

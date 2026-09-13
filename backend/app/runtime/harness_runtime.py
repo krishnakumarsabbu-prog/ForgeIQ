@@ -613,17 +613,29 @@ class HarnessRuntime:
                 status="pending",
                 risk_level="HIGH",
                 reason=f"Failure: {failure_class.value} — {error_message}",
+                approval_type="failure_escalation",
+                requested_action=f"Recover from {failure_class.value} failure",
+                impact=error_message,
             )
             store.approvals.add(approval)
             execution = store.executions.get(execution_id)
             if execution:
                 execution.approval_ids.append(approval.id)
+                execution.status = "WAITING_FOR_APPROVAL"
+                execution.waiting_approval_id = approval.id
 
             emit_event(
                 execution_id=execution_id,
                 event_type=EventType.APPROVAL_REQUESTED,
                 harness_id=harness.id,
                 message=f"Escalation approval created for harness failure ({failure_class.value})",
+                data={"approval_id": approval.id, "failure_class": failure_class.value, "approval_type": "failure_escalation"},
+            )
+            emit_event(
+                execution_id=execution_id,
+                event_type=EventType.EXECUTION_WAITING,
+                harness_id=harness.id,
+                message=f"Execution waiting for failure escalation approval ({failure_class.value})",
                 data={"approval_id": approval.id, "failure_class": failure_class.value},
             )
             return {

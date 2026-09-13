@@ -577,49 +577,75 @@ class GraphEngine:
 
         # ── APPROVAL ───────────────────────────────────────────────────
         if node_type == GraphNodeType.APPROVAL:
+            execution = store.executions.get(execution_id)
             approval = Approval(
                 tenant_id=self.tenant_id,
                 id=gen_id("appr_"),
                 execution_id=execution_id,
                 node_id=node.id,
                 harness_id=harness_id,
+                pipeline_id=execution.pipeline_id if execution else None,
+                application_id=execution.application_id if execution else None,
                 requested_by="graph_engine",
                 status="pending",
                 risk_level=node.config.get("risk_level", "MEDIUM"),
+                approval_type=node.config.get("approval_type", "high_risk_change"),
+                requested_action=node.config.get("requested_action", node.label),
+                impact=node.config.get("impact", ""),
+                checkpoint_node_id=node.id,
+                checkpoint_harness_id=harness_id,
+                checkpoint_pipeline_id=execution.pipeline_id if execution else None,
             )
             store.approvals.add(approval)
-
-            execution = store.executions.get(execution_id)
             if execution:
                 execution.approval_ids.append(approval.id)
+                execution.status = "WAITING_FOR_APPROVAL"
+                execution.waiting_approval_id = approval.id
 
             emit_event(
                 execution_id=execution_id,
                 event_type=EventType.APPROVAL_REQUESTED,
                 node_id=node.id,
                 harness_id=harness_id,
-                message=f"Approval requested at node '{node.label}' (risk: {approval.risk_level})",
-                data={"approval_id": approval.id, "risk_level": approval.risk_level},
+                message=f"Approval requested at node '{node.label}' (risk: {approval.risk_level}, type: {approval.approval_type})",
+                data={"approval_id": approval.id, "risk_level": approval.risk_level, "approval_type": approval.approval_type},
+            )
+            emit_event(
+                execution_id=execution_id,
+                event_type=EventType.EXECUTION_WAITING,
+                node_id=node.id,
+                harness_id=harness_id,
+                message=f"Execution waiting for approval at node '{node.label}'",
+                data={"approval_id": approval.id},
             )
             return {"status": "awaiting_approval", "approval_id": approval.id, "node": node.label}
 
         # ── HUMAN_TASK ─────────────────────────────────────────────────
         if node_type == GraphNodeType.HUMAN_TASK:
+            execution = store.executions.get(execution_id)
             approval = Approval(
                 tenant_id=self.tenant_id,
                 id=gen_id("appr_"),
                 execution_id=execution_id,
                 node_id=node.id,
                 harness_id=harness_id,
+                pipeline_id=execution.pipeline_id if execution else None,
+                application_id=execution.application_id if execution else None,
                 requested_by="graph_engine",
                 status="pending",
                 risk_level=node.config.get("risk_level", "MEDIUM"),
+                approval_type="human_task",
+                requested_action=node.config.get("requested_action", node.label),
+                impact=node.config.get("impact", ""),
+                checkpoint_node_id=node.id,
+                checkpoint_harness_id=harness_id,
+                checkpoint_pipeline_id=execution.pipeline_id if execution else None,
             )
             store.approvals.add(approval)
-
-            execution = store.executions.get(execution_id)
             if execution:
                 execution.approval_ids.append(approval.id)
+                execution.status = "WAITING_FOR_APPROVAL"
+                execution.waiting_approval_id = approval.id
 
             emit_event(
                 execution_id=execution_id,
@@ -627,6 +653,14 @@ class GraphEngine:
                 node_id=node.id,
                 harness_id=harness_id,
                 message=f"Human task '{node.label}' waiting for input",
+                data={"approval_id": approval.id, "approval_type": "human_task"},
+            )
+            emit_event(
+                execution_id=execution_id,
+                event_type=EventType.EXECUTION_WAITING,
+                node_id=node.id,
+                harness_id=harness_id,
+                message=f"Execution waiting for human task at node '{node.label}'",
                 data={"approval_id": approval.id},
             )
             return {"status": "awaiting_approval", "approval_id": approval.id, "node": node.label}
@@ -783,17 +817,31 @@ class GraphEngine:
         # ── ESCALATION ─────────────────────────────────────────────────
         if node_type == GraphNodeType.ESCALATION:
             escalation_type = node.config.get("escalation_type", "human_approval")
+            execution = store.executions.get(execution_id)
             approval = Approval(
                 tenant_id=self.tenant_id,
                 id=gen_id("appr_"),
                 execution_id=execution_id,
                 node_id=node.id,
                 harness_id=harness_id,
+                pipeline_id=execution.pipeline_id if execution else None,
+                application_id=execution.application_id if execution else None,
                 requested_by="graph_engine",
                 status="pending",
                 risk_level="HIGH",
+                approval_type="failure_escalation",
+                requested_action=node.label,
+                impact=node.config.get("impact", ""),
+                escalated_to=escalation_type,
+                checkpoint_node_id=node.id,
+                checkpoint_harness_id=harness_id,
+                checkpoint_pipeline_id=execution.pipeline_id if execution else None,
             )
             store.approvals.add(approval)
+            if execution:
+                execution.approval_ids.append(approval.id)
+                execution.status = "WAITING_FOR_APPROVAL"
+                execution.waiting_approval_id = approval.id
 
             emit_event(
                 execution_id=execution_id,
@@ -801,7 +849,15 @@ class GraphEngine:
                 node_id=node.id,
                 harness_id=harness_id,
                 message=f"Escalation '{node.label}' (type: {escalation_type}) — approval required",
-                data={"approval_id": approval.id, "escalation_type": escalation_type},
+                data={"approval_id": approval.id, "escalation_type": escalation_type, "approval_type": "failure_escalation"},
+            )
+            emit_event(
+                execution_id=execution_id,
+                event_type=EventType.EXECUTION_WAITING,
+                node_id=node.id,
+                harness_id=harness_id,
+                message=f"Execution waiting for escalation approval at '{node.label}'",
+                data={"approval_id": approval.id},
             )
             return {"status": "awaiting_approval", "approval_id": approval.id, "escalation_type": escalation_type}
 

@@ -10,7 +10,7 @@ from .api.routes import (
     tenants, applications, agents, skills, tools, models,
     harnesses, graphs, loops, pipelines, executions, evidence,
     engineering_state, policies, requirements, delivery, semantic, brownfield,
-    peer_engineering,
+    peer_engineering, approvals,
 )
 
 app = FastAPI(
@@ -48,6 +48,7 @@ app.include_router(delivery.router, prefix=api_prefix)
 app.include_router(semantic.router, prefix=api_prefix)
 app.include_router(brownfield.router, prefix=api_prefix)
 app.include_router(peer_engineering.router, prefix=api_prefix)
+app.include_router(approvals.router, prefix=api_prefix)
 
 
 @app.on_event("startup")
@@ -217,7 +218,7 @@ def dashboard():
     )
     build_failures = len([e for e in executions if e.status == "FAILED" and "build" in (e.error_message or "").lower()])
     high_risk_changes = len([a for a in apps if a.risk_level in ("HIGH", "CRITICAL")])
-    pending_approvals = len([e for e in executions if e.status == "AWAITING_APPROVAL"])
+    pending_approvals = len([e for e in executions if e.status in ("AWAITING_APPROVAL", "WAITING_FOR_APPROVAL")])
 
     # Recent applications
     recent_apps: list[dict] = []
