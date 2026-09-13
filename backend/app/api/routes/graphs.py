@@ -5,8 +5,13 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from ...storage.in_memory import store
-from ...domain.models.graph import Graph, GraphNode, GraphEdge, GraphNodeType
+from ...domain.models.graph import (
+    Graph, GraphNode, GraphEdge, GraphNodeType, GraphEdgeType,
+    GraphMetadata, GraphVersion, GraphNodeStatus,
+)
 from ...domain.models.base import gen_id, utc_now
+from ...runtime.graph_engine import GraphEngine
+from ...runtime.graph_validator import GraphValidator
 
 router = APIRouter(prefix="/graphs", tags=["graphs"])
 
@@ -19,6 +24,10 @@ class NodeCreate(BaseModel):
     position_x: float = 0.0
     position_y: float = 0.0
     description: str = ""
+    is_entry: bool = False
+    is_terminal: bool = False
+    inputs: list[str] = Field(default_factory=list)
+    outputs: list[str] = Field(default_factory=list)
 
 
 class EdgeCreate(BaseModel):
@@ -27,6 +36,7 @@ class EdgeCreate(BaseModel):
     label: str = ""
     condition: Optional[str] = None
     edge_type: str = "sequential"
+    is_failure_path: bool = False
 
 
 class GraphCreate(BaseModel):
@@ -34,6 +44,7 @@ class GraphCreate(BaseModel):
     display_name: str = ""
     description: str = ""
     tenant_id: str = "tenant_forgeiq"
+    metadata: Optional[dict] = None
 
 
 class NodeUpdate(BaseModel):
@@ -44,12 +55,17 @@ class NodeUpdate(BaseModel):
     position_x: Optional[float] = None
     position_y: Optional[float] = None
     description: Optional[str] = None
+    is_entry: Optional[bool] = None
+    is_terminal: Optional[bool] = None
+    inputs: Optional[list[str]] = None
+    outputs: Optional[list[str]] = None
 
 
 class EdgeUpdate(BaseModel):
     label: Optional[str] = None
     condition: Optional[str] = None
     edge_type: Optional[str] = None
+    is_failure_path: Optional[bool] = None
 
 
 class GraphFullUpdate(BaseModel):
@@ -58,6 +74,20 @@ class GraphFullUpdate(BaseModel):
     description: Optional[str] = None
     nodes: Optional[list[dict]] = None
     edges: Optional[list[dict]] = None
+    metadata: Optional[dict] = None
+    entry_node_id: Optional[str] = None
+    terminal_node_ids: Optional[list[str]] = None
+
+
+class GraphVersionCreate(BaseModel):
+    changelog: str = ""
+
+
+class GraphExecuteBody(BaseModel):
+    harness_id: str = ""
+    environment: str = "development"
+    application_id: Optional[str] = None
+    requirement_id: Optional[str] = None
 
 
 @router.get("")
@@ -75,6 +105,7 @@ def get_graph(graph_id: str):
 
 @router.post("")
 def create_graph(body: GraphCreate):
+    metadata = GraphMetadata(**body.metadata) if body.metadata else GraphMetadata()
     g = Graph(
         tenant_id=body.tenant_id,
         id=gen_id("graph_"),
@@ -83,6 +114,7 @@ def create_graph(body: GraphCreate):
         description=body.description,
         version="v1",
         published=False,
+        metadata=metadata,
         created_at=utc_now(),
     )
     store.graphs.add(g)
@@ -104,8 +136,21 @@ def update_graph_full(graph_id: str, body: GraphFullUpdate):
         g.nodes = [GraphNode(**n) for n in body.nodes]
     if body.edges is not None:
         g.edges = [GraphEdge(**e) for e in body.edges]
+    if body.metadata is not None:
+        g.metadata = GraphMetadata(**body.metadata)
+    if body.entry_node_id is not None:
+        g.entry_node_id = body.entry_node_id
+    if body.terminal_node_ids is not None:
+        g.terminal_node_ids = body.terminal_node_ids
     g.touch()
     return g
+
+
+@router.delete("/{graph_id}")
+def delete_graph(graph_id: str):
+    if not store.graphs.delete(graph_id):
+        raise HTTPException(404, "Graph not found")
+    return {"deleted": True}
 
 
 @router.post("/{graph_id}/nodes")
@@ -115,15 +160,17 @@ def add_node(graph_id: str, body: NodeCreate):
         raise HTTPException(404, "Graph not found")
     node = GraphNode(
         id=gen_id("node_"),
-        node_type=body.node_type,
-        label=body.label,
-        ref_id=body.ref_id,
-        config=body.config,
-        position_x=body.position_x,
-        position_y=body.position_y,
-        description=body.description,
+        node_type=body.node_type, label=body.label, ref_id=body.ref_id,
+        config=body.config, position_x=body.position_x, position_y=body.position_y,
+        description=body.description, is_entry=body.is_entry, is_terminal=body.is_terminal,
+        inputs=body.inputs, outputs=body.outputs,
     )
     g.nodes.append(node)
+    if body.is_entry:
+        g.entry_node_id = node.id
+    if body.is_terminal and node.id not in g.terminal_node_ids:
+        g.terminal_node_ids.append(node.id)
+    g.touch()
     return g
 
 
@@ -134,20 +181,25 @@ def update_node(graph_id: str, node_id: str, body: NodeUpdate):
         raise HTTPException(404, "Graph not found")
     for n in g.nodes:
         if n.id == node_id:
-            if body.node_type is not None:
-                n.node_type = body.node_type
-            if body.label is not None:
-                n.label = body.label
-            if body.ref_id is not None:
-                n.ref_id = body.ref_id
-            if body.config is not None:
-                n.config = body.config
-            if body.position_x is not None:
-                n.position_x = body.position_x
-            if body.position_y is not None:
-                n.position_y = body.position_y
-            if body.description is not None:
-                n.description = body.description
+            if body.node_type is not None: n.node_type = body.node_type
+            if body.label is not None: n.label = body.label
+            if body.ref_id is not None: n.ref_id = body.ref_id
+            if body.config is not None: n.config = body.config
+            if body.position_x is not None: n.position_x = body.position_x
+            if body.position_y is not None: n.position_y = body.position_y
+            if body.description is not None: n.description = body.description
+            if body.is_entry is not None:
+                n.is_entry = body.is_entry
+                if body.is_entry: g.entry_node_id = node_id
+            if body.is_terminal is not None:
+                n.is_terminal = body.is_terminal
+                if body.is_terminal and node_id not in g.terminal_node_ids:
+                    g.terminal_node_ids.append(node_id)
+                elif not body.is_terminal and node_id in g.terminal_node_ids:
+                    g.terminal_node_ids.remove(node_id)
+            if body.inputs is not None: n.inputs = body.inputs
+            if body.outputs is not None: n.outputs = body.outputs
+            g.touch()
             return n
     raise HTTPException(404, "Node not found")
 
@@ -159,6 +211,11 @@ def delete_node(graph_id: str, node_id: str):
         raise HTTPException(404, "Graph not found")
     g.nodes = [n for n in g.nodes if n.id != node_id]
     g.edges = [e for e in g.edges if e.source_node_id != node_id and e.target_node_id != node_id]
+    if g.entry_node_id == node_id:
+        g.entry_node_id = None
+    if node_id in g.terminal_node_ids:
+        g.terminal_node_ids.remove(node_id)
+    g.touch()
     return {"deleted": True}
 
 
@@ -169,13 +226,13 @@ def add_edge(graph_id: str, body: EdgeCreate):
         raise HTTPException(404, "Graph not found")
     edge = GraphEdge(
         id=gen_id("edge_"),
-        source_node_id=body.source_node_id,
-        target_node_id=body.target_node_id,
-        label=body.label,
-        condition=body.condition,
-        edge_type=body.edge_type,
+        source_node_id=body.source_node_id, target_node_id=body.target_node_id,
+        label=body.label, condition=body.condition,
+        edge_type=GraphEdgeType(body.edge_type) if body.edge_type else GraphEdgeType.SEQUENTIAL,
+        is_failure_path=body.is_failure_path,
     )
     g.edges.append(edge)
+    g.touch()
     return g
 
 
@@ -186,12 +243,11 @@ def update_edge(graph_id: str, edge_id: str, body: EdgeUpdate):
         raise HTTPException(404, "Graph not found")
     for e in g.edges:
         if e.id == edge_id:
-            if body.label is not None:
-                e.label = body.label
-            if body.condition is not None:
-                e.condition = body.condition
-            if body.edge_type is not None:
-                e.edge_type = body.edge_type
+            if body.label is not None: e.label = body.label
+            if body.condition is not None: e.condition = body.condition
+            if body.edge_type is not None: e.edge_type = GraphEdgeType(body.edge_type)
+            if body.is_failure_path is not None: e.is_failure_path = body.is_failure_path
+            g.touch()
             return e
     raise HTTPException(404, "Edge not found")
 
@@ -202,6 +258,7 @@ def delete_edge(graph_id: str, edge_id: str):
     if not g:
         raise HTTPException(404, "Graph not found")
     g.edges = [e for e in g.edges if e.id != edge_id]
+    g.touch()
     return {"deleted": True}
 
 
@@ -210,137 +267,104 @@ def validate_graph(graph_id: str):
     g = store.graphs.get(graph_id)
     if not g:
         raise HTTPException(404, "Graph not found")
+    validator = GraphValidator()
+    return validator.validate(g)
 
-    diagnostics: list[dict] = []
-    node_ids = {n.id for n in g.nodes}
-    node_map = {n.id: n for n in g.nodes}
 
-    # Disconnected nodes (no edges at all)
-    connected_ids: set[str] = set()
-    for e in g.edges:
-        connected_ids.add(e.source_node_id)
-        connected_ids.add(e.target_node_id)
-    for n in g.nodes:
-        if n.id not in connected_ids and len(g.nodes) > 1:
-            diagnostics.append({
-                "severity": "warning",
-                "code": "DISCONNECTED_NODE",
-                "message": f"Node '{n.label}' is disconnected (no incoming or outgoing edges)",
-                "node_id": n.id,
-            })
+@router.get("/{graph_id}/versions")
+def list_versions(graph_id: str):
+    g = store.graphs.get(graph_id)
+    if not g:
+        raise HTTPException(404, "Graph not found")
+    return g.versions
 
-    # Missing ref_id for agent/tool/skill nodes
-    for n in g.nodes:
-        if n.node_type in (GraphNodeType.AGENT, GraphNodeType.TOOL, GraphNodeType.SKILL) and not n.ref_id:
-            diagnostics.append({
-                "severity": "error",
-                "code": "MISSING_REF",
-                "message": f"Node '{n.label}' ({n.node_type.value}) has no {n.node_type.value} reference",
-                "node_id": n.id,
-            })
 
-    # Circular dependency detection
-    adj: dict[str, list[str]] = {n.id: [] for n in g.nodes}
-    for e in g.edges:
-        if e.source_node_id in adj:
-            adj[e.source_node_id].append(e.target_node_id)
+@router.post("/{graph_id}/versions")
+def create_version(graph_id: str, body: GraphVersionCreate):
+    g = store.graphs.get(graph_id)
+    if not g:
+        raise HTTPException(404, "Graph not found")
+    version_num = f"v{len(g.versions) + 1}"
+    v = GraphVersion(
+        tenant_id=g.tenant_id, id=gen_id("gver_"),
+        graph_id=graph_id, version=version_num,
+        published=False, is_default=False,
+        nodes=[n.model_copy() for n in g.nodes],
+        edges=[e.model_copy() for e in g.edges],
+        metadata=g.metadata.model_copy(),
+        changelog=body.changelog,
+        created_at=utc_now(),
+    )
+    g.versions.append(v)
+    g.touch()
+    return v
 
-    WHITE, GRAY, BLACK = 0, 1, 2
-    color = {nid: WHITE for nid in node_ids}
 
-    def dfs(u: str) -> bool:
-        color[u] = GRAY
-        for v in adj.get(u, []):
-            if v not in color:
-                continue
-            if color[v] == GRAY:
-                diagnostics.append({
-                    "severity": "error",
-                    "code": "CIRCULAR_DEPENDENCY",
-                    "message": f"Circular dependency detected involving '{node_map.get(u, u).label if u in node_map else u}'",
-                    "node_id": u,
-                })
-                return True
-            if color[v] == WHITE and dfs(v):
-                return True
-        color[u] = BLACK
-        return False
+@router.post("/{graph_id}/publish/{version}")
+def publish_version(graph_id: str, version: str):
+    g = store.graphs.get(graph_id)
+    if not g:
+        raise HTTPException(404, "Graph not found")
+    for v in g.versions:
+        if v.version == version:
+            v.published = True
+            v.is_default = True
+            for other in g.versions:
+                if other.version != version:
+                    other.is_default = False
+            g.version = version
+            g.published = True
+            g.touch()
+            return g
+    raise HTTPException(404, f"Version {version} not found")
 
-    for nid in node_ids:
-        if color[nid] == WHITE:
-            dfs(nid)
 
-    # Unreachable nodes (no incoming edge, not a start node)
-    has_incoming = set()
-    for e in g.edges:
-        has_incoming.add(e.target_node_id)
-    start_nodes = [n for n in g.nodes if n.id not in has_incoming]
-    if start_nodes and len(g.nodes) > 1:
-        reachable = set()
-        for sn in start_nodes:
-            stack = [sn.id]
-            while stack:
-                cur = stack.pop()
-                if cur in reachable:
-                    continue
-                reachable.add(cur)
-                for child in adj.get(cur, []):
-                    if child not in reachable:
-                        stack.append(child)
-        for n in g.nodes:
-            if n.id not in reachable and n.id not in {sn.id for sn in start_nodes}:
-                diagnostics.append({
-                    "severity": "warning",
-                    "code": "UNREACHABLE_NODE",
-                    "message": f"Node '{n.label}' is unreachable from any start node",
-                    "node_id": n.id,
-                })
+@router.post("/{graph_id}/rollback/{version}")
+def rollback_version(graph_id: str, version: str):
+    g = store.graphs.get(graph_id)
+    if not g:
+        raise HTTPException(404, "Graph not found")
+    for v in g.versions:
+        if v.version == version:
+            g.nodes = [n.model_copy() for n in v.nodes]
+            g.edges = [e.model_copy() for e in v.edges]
+            g.metadata = v.metadata.model_copy()
+            g.version = version
+            for other in g.versions:
+                other.is_default = (other.version == version)
+            g.touch()
+            return g
+    raise HTTPException(404, f"Version {version} not found")
 
-    # Missing permissions on tool nodes
-    for n in g.nodes:
-        if n.node_type == GraphNodeType.TOOL:
-            perms = n.config.get("permissions", [])
-            if not perms:
-                diagnostics.append({
-                    "severity": "warning",
-                    "code": "MISSING_PERMISSIONS",
-                    "message": f"Tool node '{n.label}' has no permissions configured",
-                    "node_id": n.id,
-                })
 
-    # Missing evidence requirements
-    has_evidence = any(n.node_type == GraphNodeType.EVIDENCE for n in g.nodes)
-    if not has_evidence and len(g.nodes) > 0:
-        diagnostics.append({
-            "severity": "warning",
-            "code": "MISSING_EVIDENCE",
-            "message": "Graph has no evidence node - execution will not produce graph-level evidence",
-        })
-
-    # Invalid edges (referencing non-existent nodes)
-    for e in g.edges:
-        if e.source_node_id not in node_ids:
-            diagnostics.append({
-                "severity": "error",
-                "code": "INVALID_EDGE_SOURCE",
-                "message": f"Edge {e.id} references non-existent source node '{e.source_node_id}'",
-                "edge_id": e.id,
-            })
-        if e.target_node_id not in node_ids:
-            diagnostics.append({
-                "severity": "error",
-                "code": "INVALID_EDGE_TARGET",
-                "message": f"Edge {e.id} references non-existent target node '{e.target_node_id}'",
-                "edge_id": e.id,
-            })
-
-    errors = [d for d in diagnostics if d["severity"] == "error"]
-    warnings = [d for d in diagnostics if d["severity"] == "warning"]
+@router.get("/{graph_id}/serialize")
+def serialize_graph(graph_id: str):
+    g = store.graphs.get(graph_id)
+    if not g:
+        raise HTTPException(404, "Graph not found")
     return {
-        "valid": len(errors) == 0,
-        "errors": errors,
-        "warnings": warnings,
-        "diagnostics": diagnostics,
-        "node_count": len(g.nodes),
-        "edge_count": len(g.edges),
+        "graph_id": g.id,
+        "name": g.name,
+        "display_name": g.display_name,
+        "version": g.version,
+        "nodes": [n.model_dump() for n in g.nodes],
+        "edges": [e.model_dump() for e in g.edges],
+        "metadata": g.metadata.model_dump(),
+        "entry_node_id": g.entry_node_id,
+        "terminal_node_ids": g.terminal_node_ids,
     }
+
+
+@router.post("/{graph_id}/execute")
+async def execute_graph(graph_id: str, body: GraphExecuteBody):
+    g = store.graphs.get(graph_id)
+    if not g:
+        raise HTTPException(404, "Graph not found")
+    engine = GraphEngine(g.tenant_id)
+    execution_id = gen_id("exec_")
+    result = await engine.execute(
+        graph_id=graph_id, execution_id=execution_id,
+        harness_id=body.harness_id, environment=body.environment,
+        application_id=body.application_id, requirement_id=body.requirement_id,
+    )
+    return {"execution_id": execution_id, **result}
