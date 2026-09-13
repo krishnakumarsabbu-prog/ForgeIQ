@@ -13,6 +13,8 @@ from ...domain.models.execution import Execution, ExecutionEvent, EventType, App
 from ...domain.models.base import gen_id, utc_now
 from ...runtime.pipeline_runtime import PipelineRuntime
 from ...runtime.harness_runtime import HarnessRuntime
+from ...events.event_bus import event_bus
+from ...events.emit import emit_event
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 
@@ -67,13 +69,11 @@ async def create_execution(body: ExecutionCreate):
     )
     store.executions.add(execution)
 
-    start_evt = ExecutionEvent(
-        id=gen_id("evt_"),
+    start_evt = emit_event(
         execution_id=execution.id,
         event_type=EventType.EXECUTION_STARTED,
         message=f"Execution started - trigger: {body.trigger}",
     )
-    store.events.append(start_evt)
     execution.events.append(start_evt)
 
     asyncio.create_task(_run_execution(execution.id, body.pipeline_id, body.harness_id, body.application_id, body.requirement_id, body.tenant_id))
@@ -106,30 +106,22 @@ async def _run_execution(execution_id: str, pipeline_id: Optional[str], harness_
             execution.status = "FAILED"
             execution.error_message = str(e)
             execution.completed_at = utc_now().isoformat()
-        fail_evt = ExecutionEvent(
-            id=gen_id("evt_"),
+        emit_event(
             execution_id=execution_id,
             event_type=EventType.EXECUTION_FAILED,
             message=f"Execution failed: {e}",
         )
-        store.events.append(fail_evt)
 
 
 @router.get("/{execution_id}/stream")
 async def stream_execution(execution_id: str):
     async def event_generator() -> AsyncGenerator[str, None]:
-        sent = 0
-        while True:
-            events = [evt for evt in store.events if evt.execution_id == execution_id]
-            new_events = events[sent:]
-            for evt in new_events:
-                yield f"data: {json.dumps(evt.model_dump(), default=str)}\n\n"
-                sent += 1
-            execution = store.executions.get(execution_id)
-            if execution and execution.status in ("COMPLETED", "FAILED", "CANCELLED"):
-                yield f"data: {json.dumps({'type': 'DONE', 'execution_id': execution_id, 'status': execution.status})}\n\n"
-                break
-            await asyncio.sleep(0.2)
+        async for chunk in event_bus.stream(execution_id=execution_id, include_history=True):
+            yield chunk
+        execution = store.executions.get(execution_id)
+        if execution and execution.status not in ("COMPLETED", "FAILED", "CANCELLED"):
+            async for chunk in event_bus.stream(execution_id=execution_id, include_history=False):
+                yield chunk
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -152,13 +144,11 @@ def create_approval(execution_id: str, requested_by: str = "system", risk_level:
     execution = store.executions.get(execution_id)
     if execution:
         execution.approval_ids.append(approval.id)
-    evt = ExecutionEvent(
-        id=gen_id("evt_"),
+    emit_event(
         execution_id=execution_id,
         event_type=EventType.APPROVAL_REQUESTED,
         message=f"Approval requested by {requested_by}",
     )
-    store.events.append(evt)
     return approval
 
 
@@ -173,11 +163,9 @@ def decide_approval(execution_id: str, approval_id: str, body: ApprovalDecision)
     approval.reason = body.reason
 
     evt_type = EventType.APPROVAL_GRANTED if body.status == "approved" else EventType.APPROVAL_REJECTED
-    evt = ExecutionEvent(
-        id=gen_id("evt_"),
+    emit_event(
         execution_id=execution_id,
         event_type=evt_type,
         message=f"Approval {body.status} by {body.decided_by}: {body.reason}",
     )
-    store.events.append(evt)
     return approval

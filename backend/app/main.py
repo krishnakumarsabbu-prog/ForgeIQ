@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .storage.in_memory import store
 from .storage.seed import seed_all
+from .events.event_bus import event_bus
 from .api.routes import (
     tenants, applications, agents, skills, tools, models,
     harnesses, graphs, loops, pipelines, executions, evidence,
@@ -53,6 +54,9 @@ app.include_router(peer_engineering.router, prefix=api_prefix)
 def startup() -> None:
     if not store.tenants.all():
         seed_all()
+        from .events.event_bus import event_bus
+        for evt in store.events:
+            event_bus.publish(evt)
 
 
 @app.get("/api/health")
@@ -350,3 +354,18 @@ def _get_current_agent_id(exec) -> str | None:
         if evt.agent_id:
             return evt.agent_id
     return None
+
+
+@app.get("/api/events/stream")
+async def stream_all_events():
+    from fastapi.responses import StreamingResponse
+    async def generator():
+        async for chunk in event_bus.stream(execution_id=None, include_history=True):
+            yield chunk
+    return StreamingResponse(generator(), media_type="text/event-stream")
+
+
+@app.get("/api/events")
+def list_events(limit: int = 100, execution_id: str | None = None):
+    events = event_bus.get_history(execution_id)
+    return events[-limit:]
