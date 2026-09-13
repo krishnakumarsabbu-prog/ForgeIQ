@@ -1,0 +1,1750 @@
+# FORGEIQ — AI ENGINEERING FACTORY
+
+## PRODUCT IDENTITY
+
+Product name:
+
+ForgeIQ
+
+Product category:
+
+Enterprise AI Engineering Factory / Harness Engineering Control Plane.
+
+Primary positioning:
+
+"We don't just build AI agents. We engineer how AI builds software."
+
+ForgeIQ is a standalone, multi-tenant enterprise platform that defines, governs, executes, observes and continuously improves how AI engineers software.
+
+ForgeIQ is NOT:
+
+* a generic AI chatbot
+* a simple agent marketplace
+* a LangGraph Studio clone
+* a Harness.io clone
+* a collection of disconnected AI agents
+* a visual workflow designer with fake execution
+* a CI/CD dashboard with AI added
+* a prompt management platform
+* a simple pipeline builder
+* a frontend-only workflow simulator
+
+The product is an executable engineering system.
+
+---
+
+# 1. CORE PRODUCT PHILOSOPHY
+
+Traditional AI agent:
+
+Agent
+→ Task
+→ Result
+
+ForgeIQ:
+
+Requirement
+→ Engineering Context
+→ Harness
+→ Graph
+→ Loop
+→ Agent
+→ Skill
+→ Tool
+→ Policy
+→ Real Action
+→ Evaluation
+→ Recovery
+→ Evidence
+→ Engineering State
+→ Next Engineering Action
+
+The system must answer:
+
+"How should AI engineer this software, under what controls, using which capabilities, following which engineering topology, adapting through which loops, and producing what evidence?"
+
+---
+
+# 2. CORE FORMULA
+
+The core platform formula is:
+
+PIPELINE
+→ HARNESS
+→ GRAPH + LOOP
+→ AGENTS + SKILLS + TOOLS
+→ CONTEXT + MODELS + POLICIES
+→ REAL EXECUTION
+→ EVALUATION
+→ LOOP / RECOVERY
+→ EVIDENCE
+→ ENGINEERING STATE
+
+---
+
+# 3. FUNDAMENTAL DEFINITIONS
+
+Agent:
+
+An engineering worker that performs a specialized engineering responsibility.
+
+Skill:
+
+A reusable engineering capability.
+
+Tool:
+
+A controlled execution capability.
+
+Model:
+
+The reasoning/inference provider used by an Agent.
+
+Graph:
+
+The engineering topology defining what work happens, dependencies, branches, conditions and execution relationships.
+
+Loop:
+
+The adaptive mechanism defining evaluation, retry, repair, recovery, escalation and exit behavior.
+
+Harness:
+
+A governed engineering execution contract containing Graph, Loops, Agents, Skills, Tools, Models, Context, Policies, Permissions, Environment, Limits and Evidence requirements.
+
+Pipeline:
+
+A lifecycle composition of Harnesses.
+
+Policy:
+
+A governance rule determining what is allowed, required or prohibited.
+
+Context:
+
+The relevant information supplied to an Agent for an engineering task.
+
+Evidence:
+
+Immutable proof of what happened during engineering execution.
+
+Engineering State:
+
+The continuously maintained understanding of the application.
+
+---
+
+# 4. MOST IMPORTANT ARCHITECTURAL PRINCIPLE
+
+Graph determines:
+
+WHAT happens.
+
+Loop determines:
+
+HOW THE SYSTEM ADAPTS.
+
+Harness determines:
+
+WHAT IS ALLOWED AND HOW EXECUTION IS GOVERNED.
+
+Agent determines:
+
+WHO PERFORMS THE ENGINEERING WORK.
+
+Skill determines:
+
+WHAT CAPABILITY THE AGENT HAS.
+
+Tool determines:
+
+WHAT REAL ACTION THE AGENT CAN PERFORM.
+
+Pipeline determines:
+
+HOW ENGINEERING LIFECYCLE STAGES ARE COMPOSED.
+
+Evidence determines:
+
+WHAT PROVES THE WORK HAPPENED.
+
+Engineering State determines:
+
+WHAT THE PLATFORM KNOWS ABOUT THE APPLICATION.
+
+---
+
+# 5. REACT CONTROL PLANE
+
+React is the Engineering Control Plane.
+
+React is responsible for:
+
+* navigation
+* configuration
+* visualization
+* graph editing
+* loop design
+* harness design
+* pipeline design
+* execution monitoring
+* approvals
+* engineering state visualization
+* evidence inspection
+* agent configuration
+* application management
+
+React must NOT become the source of truth for execution.
+
+The frontend requests execution from Python.
+
+---
+
+# 6. PYTHON EXECUTION PLANE
+
+Python is the Engineering Execution Plane.
+
+Core runtime:
+
+PipelineRuntime
+HarnessRuntime
+GraphEngine
+LoopEngine
+AgentRuntime
+ToolRuntime
+ContextEngine
+PolicyEngine
+EvidenceEngine
+EngineeringStateEngine
+ModelRuntime
+VerificationEngine
+
+Python is authoritative for execution state.
+
+Never implement important execution semantics only in React.
+
+---
+
+# 7. DOMAIN HIERARCHY
+
+Tenant
+→ Applications
+→ Requirements
+→ Agents
+→ Agent Versions
+→ Skills
+→ Tools
+→ Models
+→ Harnesses
+→ Harness Templates
+→ Graphs
+→ Loops
+→ Pipelines
+→ Executions
+→ Policies
+→ Evidence
+→ Engineering State
+→ Audit
+
+All tenant-owned entities must be tenant isolated.
+
+---
+
+# 8. AGENT ENGINEERING
+
+Agents are reusable engineering workers.
+
+Supported categories include:
+
+Requirement
+Product Analysis
+Architecture
+Coding
+Code Review
+Test Generation
+JUnit
+API Testing
+Security
+SAST
+Dependency Security
+Build
+Release Planning
+Release Notes
+Deployment
+Verification
+Operations
+Incident Analysis
+Root Cause
+Remediation
+Custom
+
+An Agent contains:
+
+Purpose
+Role
+Model
+System Instructions
+Skills
+Tools
+Context Requirements
+Input Contract
+Output Contract
+Permissions
+Max Turns
+Timeout
+Token Budget
+Cost Budget
+Retry Policy
+Security Restrictions
+Evidence Requirements
+
+---
+
+# 9. CUSTOM AGENT FACTORY
+
+Tenant users can describe an Agent in natural language.
+
+Example:
+
+"Create an agent that analyzes Spring Boot applications and identifies API breaking changes."
+
+ForgeIQ must generate:
+
+Agent
+Agent Contract
+Skills
+Tools
+Context Requirements
+Input Schema
+Output Schema
+Execution Limits
+Security Permissions
+Evidence Requirements
+Harness Compatibility
+
+A generated Agent MUST automatically become Harness-compatible.
+
+Never generate an isolated chatbot-style Agent.
+
+Every Agent must have executable engineering semantics.
+
+---
+
+# 10. AGENT CONTRACT
+
+AgentContract defines:
+
+Input schema
+Output schema
+Context contract
+Skill bindings
+Tool bindings
+Model configuration
+Permissions
+Execution limits
+Retry behavior
+Failure behavior
+Evidence requirements
+
+Harnesses reference Agent Contracts rather than relying on arbitrary prompts.
+
+---
+
+# 11. AGENT VERSIONING
+
+Published Agent versions are immutable.
+
+Example:
+
+Coding Agent
+→ v1
+→ v2
+→ v3
+
+Harnesses should reference Agent Contracts and selected versions through governed configuration.
+
+Support:
+
+Create Version
+Compare
+Publish
+Deprecate
+Rollback Default
+
+---
+
+# 12. SKILLS
+
+Skills are reusable engineering capabilities.
+
+Frontend:
+
+React
+React TypeScript
+Angular
+Vue
+HTML/CSS
+Accessibility
+Frontend Testing
+
+Backend:
+
+Python
+FastAPI
+Java
+Spring Boot
+Node.js
+REST
+GraphQL
+
+Testing:
+
+JUnit
+pytest
+Jest
+Playwright
+Cypress
+API Testing
+Integration Testing
+Regression Testing
+
+Engineering:
+
+Git
+GitHub
+GitLab
+Branch Management
+Code Review
+Refactoring
+Debugging
+
+Security:
+
+SAST
+SCA
+Dependency Analysis
+Secret Detection
+Vulnerability Remediation
+Security Review
+
+Delivery:
+
+Build Automation
+Artifact Management
+Release Management
+Deployment
+Kubernetes
+Cloud Deployment
+Environment Validation
+
+Operations:
+
+Observability
+Incident Analysis
+Root Cause Analysis
+Remediation
+Rollback
+Production Verification
+
+Skills are reusable and can be attached to multiple Agents.
+
+---
+
+# 13. TOOLS
+
+Tools represent controlled real-world execution capabilities.
+
+Examples:
+
+Git
+Filesystem
+Terminal
+Shell
+npm
+Python
+Maven
+Gradle
+pytest
+JUnit
+Jest
+Playwright
+Build Runner
+SAST Scanner
+Dependency Scanner
+Artifact Repository
+Deployment API
+Kubernetes
+Cloud API
+Observability API
+Jira
+Documentation
+Slack
+
+Every Tool must have:
+
+Permissions
+Risk level
+Allowed operations
+Supported environments
+Input validation
+Timeout
+Output limits
+Evidence requirements
+
+Tool execution MUST follow:
+
+Agent
+→ Tool Request
+→ Permission Check
+→ Policy Check
+→ Risk Check
+→ Environment Check
+→ Execute
+→ Result
+→ Evidence
+
+Tools must never bypass governance.
+
+---
+
+# 14. MODEL MANAGEMENT
+
+Centralized Model management.
+
+Providers may include:
+
+OpenAI
+Anthropic
+Google
+Azure-hosted models
+Enterprise providers
+Local models
+
+Model configuration:
+
+Provider
+Model
+Context size
+Token limit
+Cost
+Routing
+Fallback
+Temperature
+Structured output
+Availability
+Tenant restrictions
+
+Model routing may depend on:
+
+Task
+Quality
+Cost
+Latency
+Security
+Tenant Policy
+
+Model execution metadata must become Evidence.
+
+---
+
+# 15. HARNESS ENGINEERING
+
+Harness is the central abstraction of ForgeIQ.
+
+Harness is NOT:
+
+Agent A
+→ Agent B
+→ Agent C
+
+Harness is:
+
+A governed engineering execution contract.
+
+Harness contains:
+
+Purpose
+Inputs
+Outputs
+Context
+Graph
+Loops
+Agents
+Skills
+Tools
+Models
+Policies
+Permissions
+Environment
+Execution Rules
+Retry Rules
+Failure Rules
+Approval Rules
+Escalation Rules
+Cost Limits
+Time Limits
+Evidence Requirements
+
+---
+
+# 16. HARNESS GRAPH
+
+Graph nodes can include:
+
+Agent
+Skill
+Tool
+Approval
+Policy
+Condition
+Decision
+Parallel
+Merge
+Verification
+Environment
+Artifact
+Evidence
+Human Task
+Retry
+Failure Handler
+Escalation
+
+Graph supports:
+
+Dependencies
+Conditions
+Branches
+Parallel execution
+Merge
+Failure paths
+Inputs
+Outputs
+Execution context
+Environment boundaries
+
+Graph must be executable data.
+
+React Flow is the visual representation.
+
+Python GraphEngine is the execution authority.
+
+---
+
+# 17. LOOP ENGINEERING
+
+Loops are first-class objects.
+
+Loop defines:
+
+Trigger
+Condition
+Evaluation
+Action
+Retry
+Exit Condition
+Failure Handling
+Escalation
+Limits
+
+Loop types:
+
+Retry Loop
+Fix Loop
+Validation Loop
+Security Remediation Loop
+Deployment Verification Loop
+Rollback Loop
+Incident Remediation Loop
+Human Escalation Loop
+Continuous Improvement Loop
+
+Example:
+
+Testing Failed
+→ Failure Classification
+→ IF fixable AND retry count < 3
+→ Failure Analysis
+→ Coding Agent
+→ Test Runner
+→ Evaluate
+→ PASS = Exit
+→ FAIL = Retry
+→ otherwise Human Approval
+
+Loops are real backend execution semantics.
+
+They must never be frontend animations.
+
+---
+
+# 18. HARNESS TEMPLATES
+
+Enterprise administrators can define reusable Harness Templates.
+
+Example:
+
+Production Release Harness
+
+Mandatory:
+
+Security passed
+Tests passed
+Artifact exists
+Approval required
+Deployment verification
+Rollback capability
+Evidence
+
+Template settings:
+
+Required
+Optional
+Configurable
+Tenant Override Allowed
+Tenant Override Forbidden
+
+Tenant customization must never bypass mandatory governance.
+
+---
+
+# 19. PIPELINES
+
+Pipeline represents lifecycle composition.
+
+Correct:
+
+Pipeline
+→ Development Harness
+→ Testing Harness
+→ Security Harness
+→ Build Harness
+→ Release Harness
+→ Deployment Harness
+→ Verification Harness
+
+Pipeline should NOT contain hundreds of individual Agents.
+
+Each Harness owns:
+
+Graph
+Loops
+Agents
+Skills
+Tools
+Policies
+Context
+Evidence
+
+PipelineRuntime invokes HarnessRuntime.
+
+---
+
+# 20. GREENFIELD ENGINEERING
+
+Greenfield begins with a business requirement.
+
+Example:
+
+"Build a React ecommerce application with product catalog, cart, checkout and authentication."
+
+Flow:
+
+Requirement
+→ Requirement Agent
+→ Architecture Harness
+→ Architecture
+→ Development Harness
+→ Coding Agent
+→ Real Code
+→ Testing Harness
+→ Real Tests
+→ Security Harness
+→ Build Harness
+→ Release Harness
+→ Deployment Harness
+→ Verification Harness
+→ Evidence
+→ Engineering State
+
+No fake success.
+
+---
+
+# 21. BROWNFIELD ENGINEERING
+
+Brownfield begins with an existing repository.
+
+Flow:
+
+Git Repository
+→ Repository Discovery
+→ Technology Detection
+→ Architecture Analysis
+→ Dependency Analysis
+→ API Analysis
+→ Code Analysis
+→ Test Analysis
+→ Security Analysis
+→ Documentation
+→ Semantic Model
+→ Engineering State
+→ Harness Recommendation
+→ Pipeline Recommendation
+
+The platform must understand the existing application rather than treating it as greenfield.
+
+---
+
+# 22. BROWNFIELD SEMANTIC MODEL
+
+Understand:
+
+Repository
+Branches
+Commits
+Folders
+Files
+Modules
+Services
+Components
+Classes
+Functions
+Controllers
+Services
+Repositories
+APIs
+Databases
+External dependencies
+Tests
+Security findings
+Build systems
+Deployment configuration
+
+Generate:
+
+Application Wiki
+Architecture Wiki
+API Wiki
+Component Wiki
+Dependency Wiki
+Setup Guide
+Development Guide
+Deployment Guide
+Testing Guide
+Security Guide
+Known Issues
+Engineering Decisions
+
+Semantic discovery must update Engineering State.
+
+---
+
+# 23. ENGINEERING STATE
+
+Engineering State represents the platform's continuously updated understanding of an application.
+
+State includes:
+
+Repository
+Branch
+Commit
+Version
+Architecture
+Technologies
+Dependencies
+APIs
+Tests
+Security
+Build
+Release
+Deployment
+Runtime
+Known Issues
+Open Changes
+Evidence
+Decisions
+
+Every successful engineering execution can update Engineering State.
+
+---
+
+# 24. CONTEXT ENGINEERING
+
+Agents must receive relevant context rather than blindly receiving the entire repository.
+
+Context may include:
+
+Requirement
+Repository
+Relevant files
+Architecture
+APIs
+Coding standards
+Tests
+Dependencies
+Engineering State
+Previous Evidence
+Harness Policies
+Previous execution attempts
+Current Git diff
+
+ContextEngine determines what is relevant.
+
+---
+
+# 25. AI PEER ENGINEERING
+
+Developer workspace:
+
+Repository Explorer
+→ Monaco Editor
+→ AI Engineering Panel
+→ Change Panel
+→ Validation Panel
+
+Developer request:
+
+"Add retry support to payment processing."
+
+Flow:
+
+Requirement Understanding
+→ Engineering State
+→ Relevant Context
+→ Impact Analysis
+→ Risk Analysis
+→ Plan
+→ Developer Approval
+→ Code Change
+→ Tests
+→ Security
+→ Build
+→ Evidence
+
+Developer can:
+
+Approve
+Reject
+Edit
+Accept Changes
+Request Revision
+
+This is an engineering workspace, not a chatbot.
+
+---
+
+# 26. CHANGE RISK ENGINE
+
+Risk levels:
+
+LOW
+MEDIUM
+HIGH
+CRITICAL
+
+Factors:
+
+Number of files
+Critical files
+Database changes
+API changes
+Authentication changes
+Security changes
+Production dependencies
+Test coverage
+Complexity
+Dependency impact
+
+LOW:
+
+Autonomous execution may be allowed.
+
+MEDIUM:
+
+Additional validation.
+
+HIGH:
+
+Human approval.
+
+CRITICAL:
+
+Restricted production workflow.
+
+---
+
+# 27. RELEASE
+
+Release Harness may contain:
+
+Release Candidate
+→ Change Impact Analysis
+→ Release Planning
+→ Versioning
+→ Release Notes
+→ Governance
+→ Approval
+→ Deployment
+→ Environment Validation
+→ Verification
+
+Failure:
+
+Failure Analysis
+→ Rollback
+→ Root Cause
+→ Remediation
+→ Retry
+
+---
+
+# 28. DEPLOYMENT
+
+Deployment does NOT equal success.
+
+Correct:
+
+Deploy
+→ Verify
+→ Success / Failure
+
+Verification can check:
+
+Health
+APIs
+Smoke tests
+Functional tests
+Performance
+Metrics
+Logs
+Error rates
+Security
+Business behavior
+
+---
+
+# 29. INCIDENT REMEDIATION
+
+Operations is part of the engineering factory.
+
+Flow:
+
+Observability
+→ Incident Detection
+→ Incident Analysis
+→ Root Cause
+→ Coding Agent
+→ Test Agent
+→ Security Agent
+→ Approval
+→ Release
+→ Deployment
+→ Verification
+
+If verification fails:
+
+Rollback
+→ Root Cause
+→ Remediation
+→ Retry
+
+This creates a closed-loop software engineering factory.
+
+---
+
+# 30. EVIDENCE
+
+Every important action creates Evidence.
+
+Evidence chain:
+
+Requirement
+→ Pipeline
+→ Harness
+→ Graph
+→ Loop
+→ Agent
+→ Model
+→ Context
+→ Tool
+→ Action
+→ Code Change
+→ Test
+→ Security
+→ Build
+→ Release
+→ Deployment
+→ Verification
+
+Evidence records:
+
+Who/what executed
+Agent
+Agent Version
+Model
+Harness Version
+Graph Version
+Loop iteration
+Tools
+Inputs
+Outputs
+Code changes
+Tests
+Security
+Approvals
+Policies
+Deployment
+Verification
+Timestamp
+
+Evidence is append-only and auditable.
+
+---
+
+# 31. EXECUTION EVENT MODEL
+
+Every execution produces events.
+
+ExecutionStarted
+PipelineStarted
+HarnessStarted
+GraphNodeStarted
+AgentStarted
+ContextPrepared
+ToolRequested
+PermissionChecked
+PolicyChecked
+ToolExecuted
+ToolResult
+EvaluationStarted
+EvaluationCompleted
+LoopTriggered
+RetryStarted
+ApprovalRequested
+ApprovalGranted
+ApprovalRejected
+EvidenceCreated
+GraphNodeCompleted
+HarnessCompleted
+PipelineCompleted
+ExecutionFailed
+ExecutionCompleted
+
+Frontend receives live events through SSE or WebSocket.
+
+---
+
+# 32. EXECUTION VIEWER
+
+Execution Viewer hierarchy:
+
+Pipeline
+→ Harness
+→ Graph
+→ Node
+→ Agent
+→ Tool
+
+Show:
+
+What happened
+Why it happened
+Which Agent acted
+Which Model acted
+Which Tool was used
+Which Policy allowed it
+Which Loop iteration occurred
+What changed
+What failed
+How it recovered
+What Evidence was generated
+
+---
+
+# 33. EXECUTION REPLAY
+
+Every execution should be replayable.
+
+Original:
+
+Harness v3
+Graph v2
+Loop v4
+Model A
+
+Replay:
+
+Harness v4
+Graph v3
+Loop v5
+Model B
+
+Compare:
+
+Result
+Execution time
+Retries
+Cost
+Tokens
+Failures
+Evidence
+Code changes
+Quality
+Security
+Test results
+
+Replay is an engineering experimentation mechanism.
+
+---
+
+# 34. GOVERNANCE
+
+Governance requirements:
+
+Tenant isolation
+Least privilege
+Tool permissions
+Environment permissions
+Production protection
+Secret protection
+Agent sandboxing
+Policy enforcement
+Audit logging
+Approval gates
+Cost governance
+Execution limits
+
+Production deployment example:
+
+Agent requests deployment
+→ Permission Check
+→ Policy Check
+→ Risk Check
+→ Tests
+→ Security
+→ Approval
+→ Environment Check
+→ Deployment
+→ Verification
+→ Evidence
+
+---
+
+# 35. MULTI-TENANCY
+
+Tenant owns:
+
+Applications
+Requirements
+Agents
+Agent Versions
+Skills
+Tools
+Models
+Harnesses
+Harness Templates
+Pipelines
+Executions
+Policies
+Evidence
+Engineering State
+Users
+Roles
+
+Tenant data must remain isolated.
+
+Roles:
+
+Platform Administrator
+Tenant Administrator
+Engineering Lead
+Developer
+Security Engineer
+Release Manager
+Operator
+Auditor
+
+---
+
+# 36. UI PRINCIPLES
+
+The product must look like a mature enterprise engineering control plane.
+
+Visual characteristics:
+
+* light theme
+* white surfaces
+* light gray background
+* purple primary accent
+* dark slate typography
+* compact navigation
+* high information density
+* structured tables
+* status badges
+* right-side configuration drawers
+* execution timelines
+* graph visualization
+* subtle animation
+* restrained shadows
+* technical metadata
+* professional typography
+
+Avoid:
+
+* generic SaaS dashboards
+* chatbot-first UI
+* giant cards
+* cartoon graphics
+* excessive gradients
+* neon
+* glassmorphism
+* dark-only UI
+* prototype styling
+* fake execution
+
+The interface may be inspired by the information density and operational clarity of leading enterprise engineering control planes, but must maintain its own ForgeIQ identity.
+
+---
+
+# 37. CORE NAVIGATION
+
+ENGINEERING
+
+Command Center
+Requirements
+Applications
+Engineering Pipelines
+Executions
+
+AI FACTORY
+
+Agent Catalog
+Agent Factory
+Skills
+Tools
+Models
+Agent Executions
+
+HARNESS ENGINEERING
+
+Harness Catalog
+Harness Builder
+Graph Engineering
+Loop Engineering
+Harness Templates
+Harness Versions
+
+DELIVERY
+
+Build Automation
+Release Automation
+Deployments
+Environments
+
+ENGINEERING INTELLIGENCE
+
+Engineering State
+Evidence
+Quality
+Security
+Engineering Economics
+
+GOVERNANCE
+
+Policies
+Permissions
+Audit
+Governance
+
+ADMINISTRATION
+
+Tenants
+Users & Roles
+Settings
+
+---
+
+# 38. TECHNOLOGY
+
+Frontend:
+
+React 19
+TypeScript
+Vite
+Tailwind CSS
+shadcn/ui
+React Router
+TanStack Query
+AG Grid
+React Flow
+Framer Motion
+Monaco Editor
+React JSON View
+ECharts
+Lucide
+
+Backend:
+
+Python
+FastAPI
+Pydantic
+Async execution where appropriate
+SSE/WebSocket
+In-memory persistence initially
+Repository/service abstractions for future PostgreSQL
+
+Do NOT introduce:
+
+Supabase
+Bolt Database
+Docker
+nginx
+Kafka
+
+unless explicitly requested.
+
+---
+
+# 39. FRONTEND ARCHITECTURE
+
+Use domain-oriented organization.
+
+frontend/
+src/
+app/
+components/
+layouts/
+routes/
+pages/
+features/
+applications/
+agents/
+skills/
+tools/
+models/
+harnesses/
+graphs/
+loops/
+pipelines/
+executions/
+evidence/
+engineering-state/
+governance/
+hooks/
+services/
+api/
+types/
+state/
+graph/
+execution/
+editors/
+charts/
+utils/
+
+Avoid giant components.
+
+Use reusable enterprise components.
+
+---
+
+# 40. BACKEND ARCHITECTURE
+
+backend/
+app/
+main.py
+api/
+domain/
+runtime/
+pipeline_runtime.py
+harness_runtime.py
+graph_engine.py
+loop_engine.py
+agent_runtime.py
+tool_runtime.py
+context_engine.py
+policy_engine.py
+evidence_engine.py
+engineering_state.py
+model_runtime.py
+verification_engine.py
+agents/
+skills/
+tools/
+models/
+policies/
+repositories/
+services/
+storage/
+events/
+
+Do not create one giant Python file.
+
+Maintain domain boundaries.
+
+---
+
+# 41. REAL EXECUTION PRINCIPLE
+
+The platform must never fabricate engineering success.
+
+Examples of real operations:
+
+git clone
+git checkout
+git status
+git diff
+git commit
+
+npm install
+npm test
+npm run build
+
+pytest
+
+mvn test
+gradle test
+
+security scanning
+dependency scanning
+artifact creation
+deployment
+health checks
+verification
+
+If an external capability is unavailable:
+
+Show a real configuration/connection error.
+
+Do not return fake success.
+
+---
+
+# 42. FRONTEND/BACKEND CONTRACT
+
+Every major UI concept must map to backend semantics.
+
+Examples:
+
+Harness Builder
+→ Harness domain
+→ Harness API
+→ HarnessRuntime
+
+Graph Builder
+→ Graph domain
+→ Graph API
+→ GraphEngine
+
+Loop Builder
+→ Loop domain
+→ Loop API
+→ LoopEngine
+
+Agent Factory
+→ Agent Contract
+→ AgentRuntime
+
+Tool Catalog
+→ Tool definitions
+→ ToolRuntime
+
+Pipeline Builder
+→ Pipeline definition
+→ PipelineRuntime
+
+Execution Viewer
+→ Execution events
+
+Evidence UI
+→ EvidenceEngine
+
+Engineering State UI
+→ EngineeringStateEngine
+
+Do not build disconnected frontend concepts.
+
+---
+
+# 43. DEVELOPMENT RULES
+
+When implementing any new feature:
+
+1. First define the domain concept.
+2. Define the backend contract.
+3. Define the runtime semantics if executable.
+4. Define the API.
+5. Implement frontend configuration.
+6. Implement frontend visualization.
+7. Connect frontend to backend.
+8. Add execution events.
+9. Add evidence.
+10. Update Engineering State where appropriate.
+
+Do not build UI first and invent backend behavior later.
+
+---
+
+# 44. BOLT DEVELOPMENT BEHAVIOR
+
+When receiving future implementation prompts:
+
+* Continue the existing architecture.
+* Do not rebuild the project.
+* Do not remove working functionality.
+* Do not simplify domain concepts.
+* Do not replace Python with another backend.
+* Do not introduce Supabase.
+* Do not introduce Bolt Database.
+* Do not create fake APIs.
+* Do not create fake execution.
+* Do not create disconnected screens.
+* Preserve existing routes.
+* Preserve existing components.
+* Reuse existing design system.
+* Extend existing domain models.
+* Maintain tenant isolation.
+* Maintain runtime semantics.
+
+When a feature is complex, implement the underlying domain/runtime first and then connect the UI.
+
+---
+
+# 45. QUALITY BAR
+
+ForgeIQ must feel like:
+
+A mature enterprise engineering operating system.
+
+Not:
+
+A hackathon project.
+
+Not:
+
+A chatbot.
+
+Not:
+
+A workflow demo.
+
+Not:
+
+A dashboard template.
+
+The quality bar is:
+
+Enterprise
+Technical
+Dense
+Operational
+Governed
+Observable
+Executable
+Extensible
+Professional
+
+---
+
+# 46. ULTIMATE PRODUCT EXPERIENCE
+
+A user enters:
+
+"Build a React ecommerce application with product catalog, cart, checkout and authentication."
+
+ForgeIQ should transform:
+
+Requirement
+→ Context
+→ Architecture
+→ Harness
+→ Graph
+→ Agents
+→ Skills
+→ Tools
+→ Policy
+→ Real Code
+→ Build
+→ Test
+→ Security
+→ Release
+→ Deployment
+→ Verification
+→ Evidence
+→ Engineering State
+
+If reality fails:
+
+Evaluation
+→ Failure Classification
+→ Loop
+→ Diagnosis
+→ Fix
+→ Retry
+→ Verification
+
+If risk is high:
+
+Human Approval.
+
+If production fails:
+
+Rollback
+→ Root Cause
+→ Remediation
+→ Retry.
+
+This is the core proof of ForgeIQ.
+
+---
+
+# 47. FINAL FORMULA
+
+FORGEIQ
+
+=
+
+APPLICATIONS
++
+REQUIREMENTS
++
+AGENTS
++
+SKILLS
++
+TOOLS
++
+MODELS
++
+HARNESS
++
+GRAPH ENGINEERING
++
+LOOP ENGINEERING
++
+PIPELINES
++
+GOVERNANCE
++
+REAL EXECUTION
++
+EVIDENCE
++
+ENGINEERING STATE
+
+The ultimate architecture is:
+
+Pipeline
+→ Harness
+→ Graph + Loop
+→ Agents + Skills + Tools
+→ Policies + Context
+→ Real Execution
+→ Evaluation
+→ Recovery
+→ Evidence
+→ Engineering State
+
+ForgeIQ is an AI Engineering Factory.
+
+"We don't just build AI agents.
+We engineer how AI builds software."
