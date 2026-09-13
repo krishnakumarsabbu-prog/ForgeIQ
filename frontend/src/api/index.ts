@@ -11,6 +11,7 @@ import type {
   EngineeringPlan, PlanStage,
   BrownfieldImport, BrownfieldSemanticModel, BrownfieldRecommendations,
   PeerEngineeringSession,
+  Incident, IncidentTimelineEntry,
 } from '../types'
 
 export const apiService = {
@@ -255,4 +256,31 @@ export const apiService = {
   requestPeerRevision: (id: string, body: { feedback: string }) => api.post<PeerEngineeringSession>(`/peer-engineering/sessions/${id}/revision`, body),
   updatePeerFile: (id: string, body: { file_path: string; content: string }) => api.put<PeerEngineeringSession>(`/peer-engineering/sessions/${id}/file`, body),
   selectPeerFile: (id: string, body: { file_path: string }) => api.post<PeerEngineeringSession>(`/peer-engineering/sessions/${id}/select-file`, body),
+
+  incidents: (params?: Record<string, string>) => {
+    const qs = params ? '?' + Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&') : ''
+    return api.get<Incident[]>(`/incidents${qs}`)
+  },
+  incident: (id: string) => api.get<Incident>(`/incidents/${id}`),
+  createIncident: (body: unknown) => api.post<Incident>('/incidents', body),
+  addIncidentSymptom: (id: string, body: unknown) => api.post<Incident>(`/incidents/${id}/symptoms`, body),
+  analyzeIncident: (id: string, body?: { execution_id?: string }) =>
+    api.post<Record<string, unknown>>(`/incidents/${id}/analyze`, body || {}),
+  generateRemediationPlan: (id: string, body?: { execution_id?: string }) =>
+    api.post<Record<string, unknown>>(`/incidents/${id}/remediation-plan`, body || {}),
+  executeRemediation: (id: string, body?: { execution_id?: string; auto_deploy?: boolean; auto_verify?: boolean; auto_rollback_on_failure?: boolean }) =>
+    api.post<Record<string, unknown>>(`/incidents/${id}/execute-remediation`, body || {}),
+  approveRemediation: (id: string, body: { approved_by: string; reason: string }) =>
+    api.post<Record<string, unknown>>(`/incidents/${id}/approve`, body),
+  rollbackIncidentFix: (id: string, body?: { execution_id?: string; reason?: string }) =>
+    api.post<Record<string, unknown>>(`/incidents/${id}/rollback`, body || {}),
+  verifyIncidentFix: (id: string, body?: { execution_id?: string }) =>
+    api.post<Record<string, unknown>>(`/incidents/${id}/verify`, body || {}),
+  closeIncident: (id: string, body: { closed_by: string; reason: string }) =>
+    api.post<Record<string, unknown>>(`/incidents/${id}/close`, body),
+  incidentEvidence: (id: string) => api.get<Evidence[]>(`/incidents/${id}/evidence`),
+  incidentTimeline: (id: string) => api.get<IncidentTimelineEntry[]>(`/incidents/${id}/timeline`),
+  incidentSeverities: () => api.get<{ value: string; label: string }[]>('/incidents/severities/list'),
+  incidentStatuses: () => api.get<{ value: string; label: string }[]>('/incidents/statuses/list'),
+  incidentSources: () => api.get<{ value: string; label: string }[]>('/incidents/sources/list'),
 }

@@ -100,9 +100,11 @@ class InMemoryStore:
         from ..domain.models.engineering_plan import EngineeringPlan
         from ..domain.models.brownfield_import import BrownfieldImport
         from ..domain.models.peer_engineering import PeerEngineeringSession
+        from ..domain.models.incident import Incident
         self.engineering_plans: InMemoryTable[EngineeringPlan] = InMemoryTable()
         self.brownfield_imports: InMemoryTable[BrownfieldImport] = InMemoryTable()
         self.peer_sessions: InMemoryTable[PeerEngineeringSession] = InMemoryTable()
+        self.incidents: InMemoryTable[Incident] = InMemoryTable()
 
 
 store = InMemoryStore()

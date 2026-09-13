@@ -46,6 +46,8 @@ import PermissionsPage from './pages/PermissionsPage'
 import GovernancePage from './pages/GovernancePage'
 import PeerEngineeringWorkspace from './pages/PeerEngineeringWorkspace'
 import ApprovalsPage from './pages/ApprovalsPage'
+import IncidentsPage from './pages/IncidentsPage'
+import IncidentDetail from './pages/IncidentDetail'
 
 export default function App() {
   return (
@@ -97,6 +99,8 @@ export default function App() {
         <Route path="/permissions" element={<PermissionsPage />} />
         <Route path="/governance" element={<GovernancePage />} />
       <Route path="/approvals" element={<ApprovalsPage />} />
+        <Route path="/incidents" element={<IncidentsPage />} />
+        <Route path="/incidents/:id" element={<IncidentDetail />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
     </Routes>

@@ -66,6 +66,7 @@ def seed_all() -> None:
     _seed_state_history()
     _seed_deployments()
     _seed_semantic_entities()
+    _seed_incidents()
 
 
 def _seed_tenant_and_users() -> None:
@@ -1905,3 +1906,157 @@ def _seed_semantic_entities() -> None:
                 created_at=_ts(3000),
             )
             store.semantic_entities.add(se)
+
+
+def _seed_incidents() -> None:
+    from ..domain.models.incident import (
+        Incident, IncidentStatus, IncidentSeverity, IncidentSource,
+        Symptom, RootCauseFinding, RootCauseCategory,
+        RemediationPlan, RemediationStep, IncidentTimelineEntry,
+    )
+
+    apps = store.applications.all()
+    envs = store.environments.all()
+    if not apps or not envs:
+        return
+
+    prod_env = next((e for e in envs if e.env_type == EnvironmentType.PRODUCTION), envs[0])
+    app = apps[0]
+
+    inc1 = Incident(
+        tenant_id=TENANT_ID,
+        id=gen_id("inc_"),
+        title="Payment API 500 errors in production",
+        description="Payment processing endpoint returning 500 errors for ~15% of checkout attempts. Started 45 minutes ago after deployment v2.4.1.",
+        severity=IncidentSeverity.CRITICAL.value,
+        status=IncidentStatus.ROOT_CAUSE_IDENTIFIED.value,
+        source=IncidentSource.OBSERVABILITY.value,
+        application_id=app.id,
+        environment_id=prod_env.id,
+        component="payment-service",
+        assigned_to="Dmitri Volkov",
+        detected_at=_ts(45),
+        acknowledged_at=_ts(42),
+        max_retries=3,
+        created_at=_ts(45),
+    )
+    inc1.symptoms = [
+        Symptom(name="HTTP 500 error rate spike", severity="CRITICAL", component="payment-service", metric="error_rate", threshold="<1%", observed_value="15.3%", message="Error rate jumped from 0.2% to 15.3% after v2.4.1 deployment"),
+        Symptom(name="Checkout conversion drop", severity="HIGH", component="checkout", metric="conversion_rate", threshold=">85%", observed_value="72%", message="Checkout conversion dropped 13 points"),
+        Symptom(name="Payment queue backlog", severity="HIGH", component="payment-queue", metric="queue_depth", threshold="<100", observed_value="847", message="Payment processing queue backing up"),
+    ]
+    inc1.root_cause = RootCauseFinding(
+        category=RootCauseCategory.CODE_DEFECT.value,
+        component="payment-service",
+        description="Null pointer dereference in PaymentProcessor.processRefund() when refund amount equals zero. Introduced in commit a3f7b2c.",
+        commit_sha="a3f7b2c1d4e5",
+        file_path="src/services/payment/PaymentProcessor.py",
+        line_range="142-158",
+        confidence=0.94,
+        contributing_factors=["Zero-amount refund edge case not covered by tests", "Missing null check on customer object", "Deployment 2 hours before symptoms"],
+    )
+    inc1.timeline = [
+        IncidentTimelineEntry(event="created", message="Incident detected by observability alerting", actor="system", timestamp=_ts(45)),
+        IncidentTimelineEntry(event="acknowledged", message="Incident acknowledged by on-call operator", actor="Dmitri Volkov", timestamp=_ts(42)),
+        IncidentTimelineEntry(event="analysis_started", message="Root cause analysis started", actor="root_cause_agent", timestamp=_ts(40)),
+        IncidentTimelineEntry(event="root_cause_identified", message="Root cause: code_defect in payment-service (confidence: 94%)", actor="root_cause_agent", timestamp=_ts(35)),
+    ]
+    inc1.remediation_plan = RemediationPlan(
+        summary="Fix null pointer in PaymentProcessor.processRefund() for zero-amount refunds",
+        risk_level="HIGH",
+        risk_factors=["CRITICAL incident severity", "Production environment", "Payment processing - revenue impacting"],
+        requires_approval=True,
+        steps=[
+            RemediationStep(phase="fix", label="Code Fix", description="Add null check for zero-amount refund edge case", agent_id="agent_coding", status="pending"),
+            RemediationStep(phase="test", label="Test Generation", description="Generate regression tests for zero-amount refund", agent_id="agent_test", status="pending"),
+            RemediationStep(phase="security", label="Security Review", description="Security review of the code change", agent_id="agent_security", status="pending"),
+            RemediationStep(phase="build", label="Build", description="Build artifact with the fix", agent_id="agent_build", status="pending"),
+            RemediationStep(phase="release", label="Release", description="Create release candidate v2.4.2", agent_id="agent_release", status="pending"),
+            RemediationStep(phase="deploy", label="Deploy", description="Deploy fix to production", agent_id="agent_deployment", status="pending"),
+            RemediationStep(phase="verify", label="Verify", description="Verify error rate returns to normal", agent_id="agent_verification", status="pending"),
+        ],
+        estimated_duration_seconds=840,
+        estimated_cost_cents=350,
+        rollback_plan="Rollback to v2.4.0 if verification fails",
+    )
+    store.incidents.add(inc1)
+
+    inc2 = Incident(
+        tenant_id=TENANT_ID,
+        id=gen_id("inc_"),
+        title="Database connection pool exhaustion",
+        description="Database connections exhausted causing API timeouts across all services.",
+        severity=IncidentSeverity.HIGH.value,
+        status=IncidentStatus.INVESTIGATING.value,
+        source=IncidentSource.ALERT.value,
+        application_id=apps[1].id if len(apps) > 1 else app.id,
+        environment_id=prod_env.id,
+        component="database",
+        assigned_to="Priya Nair",
+        detected_at=_ts(20),
+        acknowledged_at=_ts(18),
+        max_retries=3,
+        created_at=_ts(20),
+    )
+    inc2.symptoms = [
+        Symptom(name="DB connection pool exhausted", severity="HIGH", component="database", metric="active_connections", threshold="<50", observed_value="100/100", message="All 100 connections in use"),
+        Symptom(name="API p99 latency", severity="HIGH", component="api-gateway", metric="p99_latency_ms", threshold="<500ms", observed_value="3400ms", message="API p99 latency at 3.4s"),
+    ]
+    inc2.timeline = [
+        IncidentTimelineEntry(event="created", message="Alert: DB connection pool at 100%", actor="system", timestamp=_ts(20)),
+        IncidentTimelineEntry(event="acknowledged", message="Acknowledged by on-call engineer", actor="Priya Nair", timestamp=_ts(18)),
+        IncidentTimelineEntry(event="analysis_started", message="Root cause analysis in progress", actor="root_cause_agent", timestamp=_ts(15)),
+    ]
+    store.incidents.add(inc2)
+
+    inc3 = Incident(
+        tenant_id=TENANT_ID,
+        id=gen_id("inc_"),
+        title="Checkout page slow loading",
+        description="Checkout page load time degraded to 4-6 seconds. Users reporting frustration.",
+        severity=IncidentSeverity.MEDIUM.value,
+        status=IncidentStatus.RESOLVED.value,
+        source=IncidentSource.USER_REPORT.value,
+        application_id=app.id,
+        environment_id=prod_env.id,
+        component="checkout-ui",
+        assigned_to="Marcus Rivera",
+        detected_at=_ts(180),
+        acknowledged_at=_ts(175),
+        resolved_at=_ts(120),
+        max_retries=3,
+        created_at=_ts(180),
+    )
+    inc3.symptoms = [
+        Symptom(name="Page load time", severity="MEDIUM", component="checkout-ui", metric="page_load_ms", threshold="<2000ms", observed_value="5200ms", message="Checkout page loading at 5.2s"),
+    ]
+    inc3.root_cause = RootCauseFinding(
+        category=RootCauseCategory.CONFIGURATION_ERROR.value,
+        component="checkout-ui",
+        description="CDN cache TTL set to 0 in production config, causing all assets to be served from origin.",
+        confidence=0.91,
+        contributing_factors=["Recent config change to CDN settings", "No cache validation in deployment pipeline"],
+    )
+    inc3.remediation_plan = RemediationPlan(
+        summary="Fix CDN cache configuration - restore TTL to 3600s",
+        risk_level="MEDIUM",
+        risk_factors=["MEDIUM severity", "Config-only change"],
+        requires_approval=False,
+        steps=[
+            RemediationStep(phase="fix", label="Config Fix", description="Restore CDN cache TTL to 3600s", agent_id="agent_coding", status="completed", started_at=_ts(140), completed_at=_ts(135)),
+            RemediationStep(phase="test", label="Validation", description="Validate config change", agent_id="agent_test", status="completed", started_at=_ts(135), completed_at=_ts(130)),
+            RemediationStep(phase="deploy", label="Deploy", description="Deploy config change", agent_id="agent_deployment", status="completed", started_at=_ts(130), completed_at=_ts(125)),
+            RemediationStep(phase="verify", label="Verify", description="Verify page load time", agent_id="agent_verification", status="completed", started_at=_ts(125), completed_at=_ts(120)),
+        ],
+        estimated_duration_seconds=600,
+        estimated_cost_cents=200,
+        rollback_plan="Revert config if page load does not improve",
+    )
+    inc3.timeline = [
+        IncidentTimelineEntry(event="created", message="User reports of slow checkout", actor="system", timestamp=_ts(180)),
+        IncidentTimelineEntry(event="acknowledged", message="Acknowledged by engineering lead", actor="Marcus Rivera", timestamp=_ts(175)),
+        IncidentTimelineEntry(event="root_cause_identified", message="Root cause: CDN config error (91% confidence)", actor="root_cause_agent", timestamp=_ts(150)),
+        IncidentTimelineEntry(event="remediation_planned", message="Plan: fix CDN config, 4 steps", actor="remediation_planner", timestamp=_ts(145)),
+        IncidentTimelineEntry(event="resolved", message="Resolved - page load back to 1.2s", actor="system", timestamp=_ts(120)),
+    ]
+    store.incidents.add(inc3)

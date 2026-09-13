@@ -1350,3 +1350,95 @@ export interface PeerEngineeringSession {
   created_at: string
   updated_at: string
 }
+
+export interface Symptom {
+  id: string
+  name: string
+  severity: string
+  component: string
+  metric: string
+  threshold: string
+  observed_value: string
+  message: string
+  detected_at: string
+}
+
+export interface RootCauseFinding {
+  category: string
+  component: string
+  description: string
+  commit_sha: string
+  file_path: string
+  line_range: string
+  confidence: number
+  contributing_factors: string[]
+  evidence_refs: string[]
+}
+
+export interface RemediationStep {
+  id: string
+  phase: string
+  label: string
+  description: string
+  agent_id: string
+  status: string
+  started_at?: string
+  completed_at?: string
+  result: Record<string, unknown>
+  evidence_id?: string
+}
+
+export interface RemediationPlan {
+  summary: string
+  risk_level: string
+  risk_factors: string[]
+  requires_approval: boolean
+  steps: RemediationStep[]
+  estimated_duration_seconds: number
+  estimated_cost_cents: number
+  rollback_plan: string
+  created_at: string
+}
+
+export interface IncidentTimelineEntry {
+  id: string
+  timestamp: string
+  event: string
+  message: string
+  actor: string
+  data: Record<string, unknown>
+}
+
+export interface Incident {
+  id: string
+  title: string
+  description: string
+  severity: string
+  status: string
+  source: string
+  application_id: string
+  environment_id: string
+  component: string
+  symptoms: Symptom[]
+  timeline: IncidentTimelineEntry[]
+  root_cause: RootCauseFinding | null
+  root_cause_analysis: Record<string, unknown>
+  remediation_plan: RemediationPlan | null
+  remediation_execution_id?: string
+  remediation_deployment_id?: string
+  verification_result: Record<string, unknown>
+  rollback_result: Record<string, unknown>
+  evidence_ids: string[]
+  approval_id?: string
+  assigned_to: string
+  detected_at: string
+  acknowledged_at?: string
+  resolved_at?: string
+  closed_at?: string
+  retry_count: number
+  max_retries: number
+  related_incident_ids: string[]
+  metadata: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}

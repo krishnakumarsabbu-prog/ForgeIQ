@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '../api'
-import type { Execution, ModelProviderStatus, ModelUsageStats, RoutingDecision } from '../types'
+import type { Execution, ModelProviderStatus, ModelUsageStats, RoutingDecision, Incident } from '../types'
 
 export function useDashboard() {
   return useQuery({ queryKey: ['dashboard'], queryFn: apiService.dashboard, refetchInterval: 5000 })
@@ -893,4 +893,81 @@ export function useResumeExecution() {
     mutationFn: (id: string) => apiService.resumeExecution(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['executions'] }) },
   })
+}
+
+export function useIncidents(params?: Record<string, string>) {
+  const queryKey = params ? ['incidents', JSON.stringify(params)] : ['incidents']
+  return useQuery({ queryKey, queryFn: () => apiService.incidents(params), refetchInterval: 4000 })
+}
+export function useIncident(id: string) {
+  return useQuery({ queryKey: ['incident', id], queryFn: () => apiService.incident(id), enabled: !!id, refetchInterval: 3000 })
+}
+export function useCreateIncident() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createIncident,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['incidents'] }) },
+  })
+}
+export function useAnalyzeIncident() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body?: { execution_id?: string } }) => apiService.analyzeIncident(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['incidents'] }) },
+  })
+}
+export function useGenerateRemediationPlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body?: { execution_id?: string } }) => apiService.generateRemediationPlan(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['incidents'] }) },
+  })
+}
+export function useExecuteRemediation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body?: { execution_id?: string; auto_deploy?: boolean; auto_verify?: boolean; auto_rollback_on_failure?: boolean } }) =>
+      apiService.executeRemediation(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['incidents'] }) },
+  })
+}
+export function useApproveRemediation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { approved_by: string; reason: string } }) => apiService.approveRemediation(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['incidents'] }) },
+  })
+}
+export function useRollbackIncidentFix() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body?: { execution_id?: string; reason?: string } }) => apiService.rollbackIncidentFix(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['incidents'] }) },
+  })
+}
+export function useVerifyIncidentFix() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body?: { execution_id?: string } }) => apiService.verifyIncidentFix(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['incidents'] }) },
+  })
+}
+export function useCloseIncident() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: { closed_by: string; reason: string } }) => apiService.closeIncident(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['incidents'] }) },
+  })
+}
+export function useIncidentEvidence(id: string) {
+  return useQuery({ queryKey: ['incident-evidence', id], queryFn: () => apiService.incidentEvidence(id), enabled: !!id })
+}
+export function useIncidentSeverities() {
+  return useQuery({ queryKey: ['incident-severities'], queryFn: apiService.incidentSeverities })
+}
+export function useIncidentStatuses() {
+  return useQuery({ queryKey: ['incident-statuses'], queryFn: apiService.incidentStatuses })
+}
+export function useIncidentSources() {
+  return useQuery({ queryKey: ['incident-sources'], queryFn: apiService.incidentSources })
 }

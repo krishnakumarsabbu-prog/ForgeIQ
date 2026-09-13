@@ -6,7 +6,7 @@ import {
   ScrollText, Shield, FileLock2, Building2, Users, Settings,
   Package, Rocket, Server, ChevronDown, ChevronRight, ChevronLeft,
   Boxes, Gauge, Lock, FileCheck, DollarSign, Search, Plus, Bell,
-  HelpCircle, Check, UserCog, Repeat, Code2, ShieldCheck,
+  HelpCircle, Check, UserCog, Repeat, Code2, ShieldCheck, AlertTriangle,
 } from 'lucide-react'
 import { CommandPalette } from '../ui/CommandPalette'
 import { useDashboard, useTenants, useExecutions } from '../../hooks/useQueries'
@@ -68,6 +68,12 @@ const navSections: NavSection[] = [
       { to: '/release-automation', label: 'Release Automation', icon: Rocket },
       { to: '/deployments', label: 'Deployments', icon: Server },
       { to: '/environments', label: 'Environments', icon: Server },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { to: '/incidents', label: 'Incidents', icon: AlertTriangle },
     ],
   },
   {

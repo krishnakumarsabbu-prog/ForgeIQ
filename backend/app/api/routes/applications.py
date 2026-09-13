@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from ...storage.in_memory import store
 from ...domain.models.application import Application, ApplicationType, ApplicationStatus, Repository
 from ...domain.models.base import gen_id, utc_now
+from ...domain.models.pipeline import PipelineStageType
 from ...services.engineering_planner import get_planner
 
 router = APIRouter(prefix="/applications", tags=["applications"])
@@ -176,6 +177,83 @@ def reject_engineering_plan(plan_id: str, body: PlanRejectRequest):
     return plan
 
 
+_STAGE_TYPE_MAP = {
+    "requirement": PipelineStageType.HARNESS,
+    "architecture": PipelineStageType.ARCHITECTURE,
+    "development": PipelineStageType.DEVELOPMENT,
+    "testing": PipelineStageType.TESTING,
+    "security": PipelineStageType.SECURITY,
+    "build": PipelineStageType.BUILD,
+    "release": PipelineStageType.RELEASE,
+    "deployment": PipelineStageType.DEPLOYMENT,
+    "verification": PipelineStageType.VERIFICATION,
+}
+
+
+def _build_pipeline_from_plan(plan) -> str:
+    """Build a real Pipeline (with version) from an approved EngineeringPlan,
+    persist it, link it to the application, and return the pipeline_id."""
+    from ...domain.models.pipeline import (
+        Pipeline, PipelineStage, PipelineVersion, StageConfig, FailureStrategy,
+    )
+
+    pipeline_stages: list[PipelineStage] = []
+    for ps in plan.stages:
+        stage_type = _STAGE_TYPE_MAP.get(ps.stage_type.value, PipelineStageType.HARNESS)
+        failure_strategy = FailureStrategy.RETRY if ps.stage_type.value == "testing" else FailureStrategy.ABORT
+        if ps.stage_type.value in ("build", "deployment", "verification"):
+            failure_strategy = FailureStrategy.ABORT
+
+        pipeline_stages.append(PipelineStage(
+            id=gen_id("stage_"),
+            name=ps.label,
+            stage_type=stage_type,
+            harness_id=ps.harness_id,
+            order=ps.order,
+            required=True,
+            config=StageConfig(
+                environment=ps.environment,
+                failure_strategy=failure_strategy,
+                approval_required=ps.approval_required,
+            ),
+        ))
+
+    pipeline = Pipeline(
+        tenant_id=plan.tenant_id,
+        id=gen_id("pipeline_"),
+        name=f"greenfield-{plan.application_name.lower().replace(' ', '-')[:40]}",
+        display_name=f"Greenfield Pipeline: {plan.application_name}",
+        description=f"Auto-generated from engineering plan for {plan.application_name}",
+        application_id=plan.application_id,
+        stages=pipeline_stages,
+        published=False,
+        active=True,
+        tags=["greenfield", "auto-generated"],
+        created_at=utc_now(),
+    )
+
+    version = PipelineVersion(
+        tenant_id=plan.tenant_id,
+        id=gen_id("pver_"),
+        pipeline_id=pipeline.id,
+        version="v1",
+        stages=[s.model_copy() for s in pipeline_stages],
+        changelog="Auto-generated from engineering plan",
+        created_at=utc_now(),
+    )
+    pipeline.versions.append(version)
+    pipeline.current_version = "v1"
+
+    store.pipelines.add(pipeline)
+
+    app = store.applications.get(plan.application_id)
+    if app:
+        app.pipeline_ids.append(pipeline.id)
+
+    plan.recommended_pipeline["pipeline_id"] = pipeline.id
+    return pipeline.id
+
+
 @router.post("/engineering-plan/{plan_id}/execute")
 def execute_engineering_plan(plan_id: str):
     plan = store.engineering_plans.get(plan_id)
@@ -186,41 +264,12 @@ def execute_engineering_plan(plan_id: str):
 
     from ...domain.models.execution import Execution, ExecutionEvent, EventType
     from ...runtime.pipeline_runtime import PipelineRuntime
+    from ...events.emit import emit_event
     import asyncio
 
     pipeline_id = plan.recommended_pipeline.get("pipeline_id")
     if not pipeline_id:
-        first_harness = None
-        for stage in plan.stages:
-            if stage.harness_id:
-                first_harness = stage.harness_id
-                break
-
-        execution = Execution(
-            tenant_id=plan.tenant_id,
-            id=gen_id("exec_"),
-            application_id=plan.application_id,
-            requirement_id=plan.requirement_id,
-            harness_id=first_harness,
-            status="PENDING",
-            trigger="greenfield_engineering",
-            trigger_reason=f"Greenfield engineering: {plan.application_name}",
-            created_at=utc_now(),
-        )
-        store.executions.add(execution)
-
-        start_evt = ExecutionEvent(
-            id=gen_id("evt_"),
-            execution_id=execution.id,
-            event_type=EventType.EXECUTION_STARTED,
-            message=f"Greenfield engineering execution started for '{plan.application_name}'",
-        )
-        store.events.append(start_evt)
-        execution.events.append(start_evt)
-
-        plan.execution_id = execution.id
-        plan.status = "executing"
-        return {"execution_id": execution.id, "plan_id": plan.id, "status": "started"}
+        pipeline_id = _build_pipeline_from_plan(plan)
 
     execution = Execution(
         tenant_id=plan.tenant_id,
@@ -235,13 +284,17 @@ def execute_engineering_plan(plan_id: str):
     )
     store.executions.add(execution)
 
-    start_evt = ExecutionEvent(
-        id=gen_id("evt_"),
+    start_evt = emit_event(
         execution_id=execution.id,
         event_type=EventType.EXECUTION_STARTED,
         message=f"Greenfield engineering execution started for '{plan.application_name}'",
+        data={
+            "pipeline_id": pipeline_id,
+            "application_id": plan.application_id,
+            "requirement_id": plan.requirement_id,
+            "trigger": "greenfield_engineering",
+        },
     )
-    store.events.append(start_evt)
     execution.events.append(start_evt)
 
     asyncio.create_task(PipelineRuntime(plan.tenant_id).execute(
