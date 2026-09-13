@@ -10,7 +10,7 @@ from ..domain.models.requirement import Requirement, RequirementStatus, Requirem
 from ..domain.models.agent import Agent, AgentVersion, AgentContract, AgentCategory
 from ..domain.models.skill import Skill, SkillCategory
 from ..domain.models.tool import Tool, ToolRisk
-from ..domain.models.model_config import ModelConfiguration, ModelProvider
+from ..domain.models.model_config import ModelConfiguration, ModelProvider, ModelTier
 from ..domain.models.harness import (
     Harness, HarnessVersion, HarnessTemplate, HarnessTemplateVersion,
     HarnessType, HarnessLifecycle, TemplateInheritanceLevel,
@@ -99,28 +99,54 @@ def _seed_tenant_and_users() -> None:
 
 
 def _seed_models() -> None:
+    # (name, provider, model, ctx, tok, ci, co, lat, temp, caps, fallback, avail, active,
+    #  routing_tags, tier, security_approved, enterprise_approved)
     models = [
         # Anthropic
-        ("Claude Sonnet 4", ModelProvider.ANTHROPIC, "claude-sonnet-4-20250514", 200000, 8192, 3.0, 15.0, 800, 0.7, ["text", "code", "vision", "tool_use", "structured_output"], None, "available", True),
-        ("Claude Opus 4", ModelProvider.ANTHROPIC, "claude-opus-4-20250514", 200000, 8192, 15.0, 75.0, 1200, 0.7, ["text", "code", "vision", "tool_use", "structured_output"], None, "available", False),
-        ("Claude Haiku", ModelProvider.ANTHROPIC, "claude-haiku-4-20250506", 200000, 8192, 0.25, 1.25, 400, 0.7, ["text", "code", "tool_use"], "claude-sonnet-4", "available", True),
+        ("Claude Sonnet 4", ModelProvider.ANTHROPIC, "claude-sonnet-4-20250514", 200000, 8192, 3.0, 15.0, 800, 0.7,
+         ["text", "code", "vision", "tool_use", "structured_output"], None, "available", True,
+         ["coding", "architecture", "code-review", "test-generation", "remediation"], ModelTier.HIGH_QUALITY, True, False),
+        ("Claude Opus 4", ModelProvider.ANTHROPIC, "claude-opus-4-20250514", 200000, 8192, 15.0, 75.0, 1200, 0.7,
+         ["text", "code", "vision", "tool_use", "structured_output"], None, "available", False,
+         ["architecture", "complex-reasoning"], ModelTier.HIGH_QUALITY, True, True),
+        ("Claude Haiku", ModelProvider.ANTHROPIC, "claude-haiku-4-20250506", 200000, 8192, 0.25, 1.25, 400, 0.7,
+         ["text", "code", "tool_use"], "claude-sonnet-4", "available", True,
+         ["classification", "simple-analysis", "release-notes"], ModelTier.LOW_COST, False, False),
         # OpenAI
-        ("GPT-4o", ModelProvider.OPENAI, "gpt-4o-2024-11-20", 128000, 16384, 2.5, 10.0, 600, 0.7, ["text", "code", "vision", "tool_use", "structured_output"], None, "available", True),
-        ("GPT-4o mini", ModelProvider.OPENAI, "gpt-4o-mini-2024-07-18", 128000, 16384, 0.15, 0.60, 300, 0.7, ["text", "code", "tool_use", "structured_output"], "gpt-4o", "available", True),
-        ("o3-mini", ModelProvider.OPENAI, "o3-mini-2025-01-31", 200000, 100000, 1.1, 4.4, 1500, 0.7, ["text", "code", "reasoning", "tool_use"], None, "available", True),
+        ("GPT-4o", ModelProvider.OPENAI, "gpt-4o-2024-11-20", 128000, 16384, 2.5, 10.0, 600, 0.7,
+         ["text", "code", "vision", "tool_use", "structured_output"], None, "available", True,
+         ["build", "deployment", "verification"], ModelTier.BALANCED, False, False),
+        ("GPT-4o mini", ModelProvider.OPENAI, "gpt-4o-mini-2024-07-18", 128000, 16384, 0.15, 0.60, 300, 0.7,
+         ["text", "code", "tool_use", "structured_output"], "gpt-4o", "available", True,
+         ["verification", "classification", "simple-analysis"], ModelTier.LOW_COST, False, False),
+        ("o3-mini", ModelProvider.OPENAI, "o3-mini-2025-01-31", 200000, 100000, 1.1, 4.4, 1500, 0.7,
+         ["text", "code", "reasoning", "tool_use"], None, "available", True,
+         ["reasoning", "root-cause", "incident-analysis"], ModelTier.HIGH_QUALITY, False, False),
         # Google
-        ("Gemini 2.5 Pro", ModelProvider.GOOGLE, "gemini-2.5-pro-20250325", 1000000, 8192, 1.25, 5.0, 700, 0.7, ["text", "code", "vision", "audio", "tool_use", "structured_output"], None, "available", True),
-        ("Gemini 2.5 Flash", ModelProvider.GOOGLE, "gemini-2.5-flash-20250325", 1000000, 8192, 0.075, 0.30, 200, 0.7, ["text", "code", "vision", "tool_use", "structured_output"], "gemini-2.5-pro", "available", True),
+        ("Gemini 2.5 Pro", ModelProvider.GOOGLE, "gemini-2.5-pro-20250325", 1000000, 8192, 1.25, 5.0, 700, 0.7,
+         ["text", "code", "vision", "audio", "tool_use", "structured_output"], None, "available", True,
+         ["architecture", "analysis", "documentation"], ModelTier.BALANCED, False, False),
+        ("Gemini 2.5 Flash", ModelProvider.GOOGLE, "gemini-2.5-flash-20250325", 1000000, 8192, 0.075, 0.30, 200, 0.7,
+         ["text", "code", "vision", "tool_use", "structured_output"], "gemini-2.5-pro", "available", True,
+         ["classification", "simple-analysis"], ModelTier.LOW_COST, False, False),
         # Azure
-        ("GPT-4o (Azure)", ModelProvider.AZURE, "gpt-4o-azure-deploy", 128000, 16384, 2.5, 10.0, 650, 0.7, ["text", "code", "vision", "tool_use", "structured_output"], None, "available", False),
+        ("GPT-4o (Azure)", ModelProvider.AZURE, "gpt-4o-azure-deploy", 128000, 16384, 2.5, 10.0, 650, 0.7,
+         ["text", "code", "vision", "tool_use", "structured_output"], None, "available", False,
+         ["build", "deployment", "enterprise"], ModelTier.ENTERPRISE_APPROVED, True, True),
         # Enterprise Custom
-        ("ForgeIQ Enterprise Model", ModelProvider.ENTERPRISE, "forgeiq-ent-v2", 256000, 8192, 0.0, 0.0, 900, 0.5, ["text", "code", "tool_use", "structured_output"], "claude-sonnet-4", "restricted", True),
+        ("ForgeIQ Enterprise Model", ModelProvider.ENTERPRISE, "forgeiq-ent-v2", 256000, 8192, 0.0, 0.0, 900, 0.5,
+         ["text", "code", "tool_use", "structured_output"], "claude-sonnet-4", "restricted", True,
+         ["production", "critical", "enterprise"], ModelTier.ENTERPRISE_APPROVED, True, True),
         # Local
-        ("Llama 3.1 70B (Local)", ModelProvider.LOCAL, "llama-3.1-70b", 128000, 4096, 0.0, 0.0, 2000, 0.5, ["text", "code"], None, "available", True),
-        ("CodeLlama 34B (Local)", ModelProvider.LOCAL, "codellama-34b", 16384, 4096, 0.0, 0.0, 1500, 0.2, ["code"], None, "available", True),
+        ("Llama 3.1 70B (Local)", ModelProvider.LOCAL, "llama-3.1-70b", 128000, 4096, 0.0, 0.0, 2000, 0.5,
+         ["text", "code"], None, "available", True,
+         ["local", "offline", "coding"], ModelTier.LOCAL, False, False),
+        ("CodeLlama 34B (Local)", ModelProvider.LOCAL, "codellama-34b", 16384, 4096, 0.0, 0.0, 1500, 0.2,
+         ["code"], None, "available", True,
+         ["local", "offline", "code"], ModelTier.LOCAL, False, False),
     ]
     model_name_map: dict[str, str] = {}
-    for name, provider, model, ctx, tok, ci, co, lat, temp, caps, fallback, avail, active in models:
+    for name, provider, model, ctx, tok, ci, co, lat, temp, caps, fallback, avail, active, tags, tier, sec_app, ent_app in models:
         slug = name.lower().replace(" ", "-")
         m = ModelConfiguration(
             tenant_id=TENANT_ID,
@@ -141,6 +167,10 @@ def _seed_models() -> None:
             tenant_restricted=(provider == ModelProvider.ENTERPRISE),
             tenant_restrictions=["enterprise-only"] if provider == ModelProvider.ENTERPRISE else [],
             active=active,
+            routing_tags=tags,
+            tier=tier,
+            security_approved=sec_app,
+            enterprise_approved=ent_app,
             created_at=_ts(8000),
         )
         store.models.add(m)

@@ -12,7 +12,8 @@ from ..domain.models.base import gen_id, utc_now
 from ..domain.models.execution import ExecutionEvent, EventType, Execution
 from ..domain.models.evidence import EvidenceType
 from ..events.emit import emit_event
-from .model_providers import resolve_provider, ModelInvocationResult
+from .model_providers import ModelInvocationResult
+from .model_runtime import ModelRuntime
 from .evidence_engine import EvidenceEngine
 from .tool_runtime import ToolRuntime
 from .policy_engine import PolicyEngine
@@ -47,6 +48,7 @@ class AgentRuntime:
         self.evidence_engine = EvidenceEngine(tenant_id)
         self.tool_runtime = ToolRuntime(tenant_id)
         self.policy_engine = PolicyEngine(tenant_id)
+        self.model_runtime = ModelRuntime(tenant_id)
 
     # ------------------------------------------------------------------
     # Agent / version resolution
@@ -370,24 +372,6 @@ class AgentRuntime:
                 "agent_version": version.version,
             }
 
-        provider_client, provider_err = resolve_provider(model)
-        if provider_client is None:
-            emit_event(
-                execution_id=execution_id,
-                event_type=EventType.EXECUTION_FAILED,
-                agent_id=agent_id,
-                node_id=node_id,
-                message=f"Model provider unavailable: {provider_err}",
-                data={"model": model.model, "provider": model.provider.value},
-            )
-            return {
-                "status": "failed",
-                "error": provider_err,
-                "agent": agent.display_name,
-                "agent_version": version.version,
-                "model": model.model,
-            }
-
         emit_event(
             execution_id=execution_id,
             event_type=EventType.AGENT_STARTED,
@@ -403,7 +387,7 @@ class AgentRuntime:
             _set_state(AgentExecutionState.FAILED)
             return {"status": "failed", "error": "Tool validation failed", "agent": agent.display_name}
 
-        # ── Execute Agent ────────────────────────────────────────────
+        # ── Execute Agent via centralized ModelRuntime ───────────────
         _set_state(AgentExecutionState.RUNNING)
 
         messages: list[dict[str, Any]] = [
@@ -413,13 +397,19 @@ class AgentRuntime:
 
         try:
             invocation = await asyncio.wait_for(
-                provider_client.invoke(
-                    model=model,
+                self.model_runtime.invoke(
+                    model_id=model.id,
                     system_instructions=version.system_instructions or agent.system_instructions,
                     messages=messages,
                     temperature=model.temperature,
                     max_tokens=min(model.token_limit, contract.token_budget),
                     structured_output=model.structured_output,
+                    agent_id=agent_id,
+                    execution_id=execution_id,
+                    node_id=node_id,
+                    task=agent.category.value,
+                    token_budget=contract.token_budget,
+                    cost_budget_cents=contract.cost_budget_cents,
                 ),
                 timeout=contract.timeout_seconds,
             )
@@ -472,44 +462,8 @@ class AgentRuntime:
                 "model": invocation.model_name,
             }
 
-        # ── Budget enforcement ───────────────────────────────────────
+        # ── Budget already enforced inside ModelRuntime ─────────────
         total_tokens = invocation.input_tokens + invocation.output_tokens
-        if total_tokens > contract.token_budget:
-            _set_state(AgentExecutionState.FAILED)
-            emit_event(
-                execution_id=execution_id,
-                event_type=EventType.EXECUTION_FAILED,
-                agent_id=agent_id,
-                node_id=node_id,
-                message=(
-                    f"Token budget exceeded: {total_tokens} > {contract.token_budget}"
-                ),
-            )
-            return {
-                "status": "failed",
-                "error": f"Token budget exceeded ({total_tokens}/{contract.token_budget})",
-                "agent": agent.display_name,
-                "agent_version": version.version,
-            }
-
-        if invocation.cost_cents > contract.cost_budget_cents:
-            _set_state(AgentExecutionState.FAILED)
-            emit_event(
-                execution_id=execution_id,
-                event_type=EventType.EXECUTION_FAILED,
-                agent_id=agent_id,
-                node_id=node_id,
-                message=(
-                    f"Cost budget exceeded: {invocation.cost_cents:.2f} > "
-                    f"{contract.cost_budget_cents}"
-                ),
-            )
-            return {
-                "status": "failed",
-                "error": f"Cost budget exceeded ({invocation.cost_cents:.2f}/{contract.cost_budget_cents})",
-                "agent": agent.display_name,
-                "agent_version": version.version,
-            }
 
         # ── Validate Output ──────────────────────────────────────────
         _set_state(AgentExecutionState.EVALUATING)
@@ -571,6 +525,7 @@ class AgentRuntime:
             agent_id=agent_id,
             agent_version=version.version,
             model_used=invocation.model_name,
+            model_provider=invocation.provider,
             harness_id=harness_id,
             inputs=evidence_inputs,
             outputs=evidence_outputs,

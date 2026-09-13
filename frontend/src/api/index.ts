@@ -1,6 +1,7 @@
 import { api } from './client'
 import type {
-  Application, Agent, Skill, Tool, ModelConfiguration, Harness, HarnessTemplate, HarnessTemplateVersion,
+  Application, Agent, Skill, Tool, ModelConfiguration, ModelUsageRecord, ModelUsageStats, ModelProviderStatus, RoutingDecision,
+  Harness, HarnessTemplate, HarnessTemplateVersion,
   HarnessTemplateComparison, TemplateInheritanceChain, HarnessVersion, HarnessVersionComparison,
   Graph, GraphValidation, GraphNode, GraphEdge, GraphVersion, GraphSerialization, GraphExecutionResult, Loop, LoopStep,
   Pipeline, PipelineTemplate, PipelineTemplateVersion, PipelineVersion, Execution, ExecutionEvent, Evidence, EvidenceStats, EvidenceChainVerification, EvidenceTypeOption, EngineeringState,
@@ -74,6 +75,16 @@ export const apiService = {
   updateModel: (id: string, body: unknown) => api.put<ModelConfiguration>(`/models/${id}`, body),
   deleteModel: (id: string) => api.delete<Record<string, unknown>>(`/models/${id}`),
   modelProviders: () => api.get<{value: string; label: string}[]>('/models/providers'),
+  modelProviderStatus: () => api.get<ModelProviderStatus[]>('/models/provider-status'),
+  modelTiers: () => api.get<{value: string; label: string}[]>('/models/tiers'),
+  routingFactors: () => api.get<{value: string; label: string}[]>('/models/routing-factors'),
+  routeModel: (body: { task?: string; quality?: string; cost?: string; latency?: string; security?: boolean; preferred_model_id?: string }) =>
+    api.post<RoutingDecision>('/models/route', body),
+  modelUsage: (params?: Record<string, string>) => {
+    const qs = params ? '?' + Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&') : ''
+    return api.get<ModelUsageRecord[]>(`/models/usage${qs}`)
+  },
+  modelUsageStats: () => api.get<ModelUsageStats>('/models/usage/stats'),
 
   harnesses: () => api.get<Harness[]>('/harnesses'),
   harness: (id: string) => api.get<Harness>(`/harnesses/${id}`),

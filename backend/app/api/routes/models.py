@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
+from typing import Optional
 
 from ...storage.in_memory import store
-from ...domain.models.model_config import ModelConfiguration, ModelProvider
+from ...domain.models.model_config import ModelConfiguration, ModelProvider, ModelTier
 from ...domain.models.base import gen_id, utc_now
+from ...runtime.model_runtime import ModelRuntime, get_usage_records
 
 router = APIRouter(prefix="/models", tags=["models"])
 
@@ -22,10 +24,14 @@ class ModelCreate(BaseModel):
     latency_ms: int = 500
     temperature: float = 0.7
     capabilities: list[str] = Field(default_factory=lambda: ["text", "code"])
+    routing_tags: list[str] = Field(default_factory=list)
+    tier: ModelTier = ModelTier.BALANCED
     fallback_model_id: str | None = None
     availability: str = "available"
     tenant_restricted: bool = False
     tenant_restrictions: list[str] = Field(default_factory=list)
+    security_approved: bool = False
+    enterprise_approved: bool = False
     active: bool = True
     tenant_id: str = "tenant_forgeiq"
 
@@ -41,11 +47,25 @@ class ModelUpdate(BaseModel):
     latency_ms: int | None = None
     temperature: float | None = None
     capabilities: list[str] | None = None
+    routing_tags: list[str] | None = None
+    tier: ModelTier | None = None
     fallback_model_id: str | None = None
     availability: str | None = None
     tenant_restricted: bool | None = None
     tenant_restrictions: list[str] | None = None
+    security_approved: bool | None = None
+    enterprise_approved: bool | None = None
     active: bool | None = None
+
+
+class RouteRequest(BaseModel):
+    task: str = ""
+    quality: str | None = None
+    cost: str | None = None
+    latency: str | None = None
+    security: bool = False
+    environment: str = ""
+    preferred_model_id: str | None = None
 
 
 @router.get("")
@@ -58,7 +78,91 @@ def list_models(tenant_id: str = "tenant_forgeiq", provider: str | None = None):
 
 @router.get("/providers")
 def list_providers():
-    return [{"value": p.value, "label": p.value} for p in ModelProvider]
+    rt = ModelRuntime("tenant_forgeiq")
+    return rt.list_providers()
+
+
+@router.get("/provider-status")
+def provider_status():
+    rt = ModelRuntime("tenant_forgeiq")
+    return rt.provider_status()
+
+
+@router.get("/tiers")
+def list_tiers():
+    return [{"value": t.value, "label": t.value.replace("_", " ").title()} for t in ModelTier]
+
+
+@router.get("/routing-factors")
+def list_routing_factors():
+    from ...domain.models.model_config import RoutingFactor
+    return [{"value": f.value, "label": f.value.replace("_", " ").title()} for f in RoutingFactor]
+
+
+@router.post("/route")
+def route_model(body: RouteRequest, tenant_id: str = "tenant_forgeiq"):
+    rt = ModelRuntime(tenant_id)
+    decision = rt.route_model(
+        task=body.task,
+        quality=body.quality,
+        cost=body.cost,
+        latency=body.latency,
+        security=body.security,
+        environment=body.environment,
+        preferred_model_id=body.preferred_model_id,
+    )
+    return {
+        "model": decision.model,
+        "fallback_used": decision.fallback_used,
+        "original_model_id": decision.original_model_id,
+        "reason": decision.reason,
+        "factors_evaluated": decision.factors_evaluated,
+    }
+
+
+@router.get("/usage")
+def model_usage(
+    tenant_id: str = "tenant_forgeiq",
+    model_id: str | None = None,
+    agent_id: str | None = None,
+    execution_id: str | None = None,
+    limit: int = Query(100, le=500),
+):
+    records = get_usage_records(
+        tenant_id=tenant_id,
+        model_id=model_id,
+        agent_id=agent_id,
+        execution_id=execution_id,
+        limit=limit,
+    )
+    return [
+        {
+            "id": r.id,
+            "model_id": r.model_id,
+            "model_name": r.model_name,
+            "provider": r.provider,
+            "agent_id": r.agent_id,
+            "execution_id": r.execution_id,
+            "node_id": r.node_id,
+            "task": r.task,
+            "input_tokens": r.input_tokens,
+            "output_tokens": r.output_tokens,
+            "cost_cents": r.cost_cents,
+            "latency_ms": r.latency_ms,
+            "success": r.success,
+            "error": r.error,
+            "fallback_used": r.fallback_used,
+            "original_model_id": r.original_model_id,
+            "timestamp": r.timestamp,
+        }
+        for r in records
+    ]
+
+
+@router.get("/usage/stats")
+def model_usage_stats(tenant_id: str = "tenant_forgeiq"):
+    rt = ModelRuntime(tenant_id)
+    return rt.usage_stats()
 
 
 @router.get("/{model_id}")
@@ -85,10 +189,14 @@ def create_model(body: ModelCreate):
         latency_ms=body.latency_ms,
         temperature=body.temperature,
         capabilities=body.capabilities,
+        routing_tags=body.routing_tags,
+        tier=body.tier,
         fallback_model_id=body.fallback_model_id,
         availability=body.availability,
         tenant_restricted=body.tenant_restricted,
         tenant_restrictions=body.tenant_restrictions,
+        security_approved=body.security_approved,
+        enterprise_approved=body.enterprise_approved,
         active=body.active,
         created_at=utc_now(),
     )

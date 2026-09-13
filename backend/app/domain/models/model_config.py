@@ -17,6 +17,25 @@ class ModelProvider(str, Enum):
     LOCAL = "Local"
 
 
+class ModelTier(str, Enum):
+    HIGH_QUALITY = "high_quality"
+    BALANCED = "balanced"
+    LOW_COST = "low_cost"
+    SECURITY_APPROVED = "security_approved"
+    ENTERPRISE_APPROVED = "enterprise_approved"
+    LOCAL = "local"
+
+
+class RoutingFactor(str, Enum):
+    TASK = "task"
+    QUALITY = "quality"
+    COST = "cost"
+    LATENCY = "latency"
+    SECURITY = "security"
+    TENANT_POLICY = "tenant_policy"
+    AVAILABILITY = "availability"
+
+
 class ModelConfiguration(TenantOwned):
     name: str
     provider: ModelProvider
@@ -30,6 +49,8 @@ class ModelConfiguration(TenantOwned):
     structured_output: bool = False
     capabilities: list[str] = Field(default_factory=lambda: ["text", "code"])
     routing: dict = Field(default_factory=dict)
+    routing_tags: list[str] = Field(default_factory=list)
+    tier: ModelTier = ModelTier.BALANCED
     fallback_model_id: Optional[str] = None
     availability: str = "available"
     tenant_restricted: bool = False
@@ -37,3 +58,5 @@ class ModelConfiguration(TenantOwned):
     active: bool = True
     display_name: str = ""
     max_concurrent: int = 5
+    security_approved: bool = False
+    enterprise_approved: bool = False

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiService } from '../api'
-import type { Execution } from '../types'
+import type { Execution, ModelProviderStatus, ModelUsageStats, RoutingDecision } from '../types'
 
 export function useDashboard() {
   return useQuery({ queryKey: ['dashboard'], queryFn: apiService.dashboard, refetchInterval: 5000 })
@@ -34,6 +34,28 @@ export function useTools() {
 
 export function useModels() {
   return useQuery({ queryKey: ['models'], queryFn: apiService.models })
+}
+
+export function useModelProviderStatus() {
+  return useQuery({ queryKey: ['model-provider-status'], queryFn: apiService.modelProviderStatus, refetchInterval: 10000 })
+}
+
+export function useModelUsageStats() {
+  return useQuery({ queryKey: ['model-usage-stats'], queryFn: apiService.modelUsageStats, refetchInterval: 5000 })
+}
+
+export function useModelTiers() {
+  return useQuery({ queryKey: ['model-tiers'], queryFn: apiService.modelTiers })
+}
+
+export function useRoutingFactors() {
+  return useQuery({ queryKey: ['routing-factors'], queryFn: apiService.routingFactors })
+}
+
+export function useRouteModel() {
+  return useMutation({
+    mutationFn: apiService.routeModel,
+  })
 }
 
 export function useHarnesses() {

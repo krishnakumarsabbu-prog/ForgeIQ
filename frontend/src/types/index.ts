@@ -221,13 +221,63 @@ export interface ModelConfiguration {
   structured_output: boolean
   capabilities: string[]
   routing: Record<string, unknown>
+  routing_tags: string[]
+  tier: string
   fallback_model_id?: string
   availability: string
   tenant_restricted: boolean
   tenant_restrictions: string[]
+  security_approved: boolean
+  enterprise_approved: boolean
   active: boolean
   max_concurrent: number
   created_at: string
+}
+
+export interface ModelUsageRecord {
+  id: string
+  model_id: string
+  model_name: string
+  provider: string
+  agent_id: string
+  execution_id: string
+  node_id: string
+  task: string
+  input_tokens: number
+  output_tokens: number
+  cost_cents: number
+  latency_ms: number
+  success: boolean
+  error: string
+  fallback_used: boolean
+  original_model_id: string
+  timestamp: string
+}
+
+export interface ModelUsageStats {
+  total_invocations: number
+  successful: number
+  failed: number
+  fallbacks_used: number
+  total_tokens: number
+  total_cost_cents: number
+  by_model: Record<string, { invocations: number; tokens: number; cost_cents: number; failures: number }>
+  by_provider: Record<string, { invocations: number; tokens: number; cost_cents: number }>
+}
+
+export interface ModelProviderStatus {
+  provider: string
+  configured: boolean
+  model_count: number
+  active_models: number
+}
+
+export interface RoutingDecision {
+  model: ModelConfiguration | null
+  fallback_used: boolean
+  original_model_id: string
+  reason: string
+  factors_evaluated: string[]
 }
 
 export interface GraphNode {
