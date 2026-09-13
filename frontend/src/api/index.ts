@@ -41,13 +41,23 @@ export const apiService = {
   skills: () => api.get<Skill[]>('/skills'),
   skill: (id: string) => api.get<Skill>(`/skills/${id}`),
   createSkill: (body: unknown) => api.post<Skill>('/skills', body),
+  updateSkill: (id: string, body: unknown) => api.put<Skill>(`/skills/${id}`, body),
+  deleteSkill: (id: string) => api.delete<Record<string, unknown>>(`/skills/${id}`),
+  skillCategories: () => api.get<{value: string; label: string}[]>('/skills/categories'),
 
   tools: () => api.get<Tool[]>('/tools'),
   tool: (id: string) => api.get<Tool>(`/tools/${id}`),
   createTool: (body: unknown) => api.post<Tool>('/tools', body),
+  updateTool: (id: string, body: unknown) => api.put<Tool>(`/tools/${id}`, body),
+  deleteTool: (id: string) => api.delete<Record<string, unknown>>(`/tools/${id}`),
+  toolCategories: () => api.get<{value: string; label: string}[]>('/tools/categories'),
 
   models: () => api.get<ModelConfiguration[]>('/models'),
   model: (id: string) => api.get<ModelConfiguration>(`/models/${id}`),
+  createModel: (body: unknown) => api.post<ModelConfiguration>('/models', body),
+  updateModel: (id: string, body: unknown) => api.put<ModelConfiguration>(`/models/${id}`, body),
+  deleteModel: (id: string) => api.delete<Record<string, unknown>>(`/models/${id}`),
+  modelProviders: () => api.get<{value: string; label: string}[]>('/models/providers'),
 
   harnesses: () => api.get<Harness[]>('/harnesses'),
   harness: (id: string) => api.get<Harness>(`/harnesses/${id}`),

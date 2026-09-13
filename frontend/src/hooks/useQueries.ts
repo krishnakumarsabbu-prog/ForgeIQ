@@ -168,12 +168,62 @@ export function useCreateSkill() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['skills'] }) },
   })
 }
+export function useUpdateSkill() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.updateSkill(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['skills'] }) },
+  })
+}
+export function useDeleteSkill() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.deleteSkill,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['skills'] }) },
+  })
+}
 
 export function useCreateTool() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: apiService.createTool,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['tools'] }) },
+  })
+}
+export function useUpdateTool() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.updateTool(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tools'] }) },
+  })
+}
+export function useDeleteTool() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.deleteTool,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tools'] }) },
+  })
+}
+
+export function useCreateModel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.createModel,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['models'] }) },
+  })
+}
+export function useUpdateModel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: unknown }) => apiService.updateModel(id, body),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['models'] }) },
+  })
+}
+export function useDeleteModel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: apiService.deleteModel,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['models'] }) },
   })
 }
 

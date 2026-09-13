@@ -91,19 +91,32 @@ def _seed_tenant_and_users() -> None:
 
 def _seed_models() -> None:
     models = [
-        ("Claude Sonnet 4", ModelProvider.ANTHROPIC, "claude-sonnet-4-20250514", 200000, 8192, 3.0, 15.0, 0.7),
-        ("Claude Haiku", ModelProvider.ANTHROPIC, "claude-haiku-4-20250506", 200000, 8192, 0.25, 1.25, 0.7),
-        ("GPT-4o", ModelProvider.OPENAI, "gpt-4o-2024-11-20", 128000, 16384, 2.5, 10.0, 0.7),
-        ("GPT-4o mini", ModelProvider.OPENAI, "gpt-4o-mini-2024-07-18", 128000, 16384, 0.15, 0.60, 0.7),
-        ("Gemini 2.5 Pro", ModelProvider.GOOGLE, "gemini-2.5-pro-20250325", 1000000, 8192, 1.25, 5.0, 0.7),
-        ("Gemini 2.5 Flash", ModelProvider.GOOGLE, "gemini-2.5-flash-20250325", 1000000, 8192, 0.075, 0.30, 0.7),
-        ("Llama 3.1 70B (Local)", ModelProvider.LOCAL, "llama-3.1-70b", 128000, 4096, 0.0, 0.0, 0.5),
+        # Anthropic
+        ("Claude Sonnet 4", ModelProvider.ANTHROPIC, "claude-sonnet-4-20250514", 200000, 8192, 3.0, 15.0, 800, 0.7, ["text", "code", "vision", "tool_use", "structured_output"], None, "available", True),
+        ("Claude Opus 4", ModelProvider.ANTHROPIC, "claude-opus-4-20250514", 200000, 8192, 15.0, 75.0, 1200, 0.7, ["text", "code", "vision", "tool_use", "structured_output"], None, "available", False),
+        ("Claude Haiku", ModelProvider.ANTHROPIC, "claude-haiku-4-20250506", 200000, 8192, 0.25, 1.25, 400, 0.7, ["text", "code", "tool_use"], "claude-sonnet-4", "available", True),
+        # OpenAI
+        ("GPT-4o", ModelProvider.OPENAI, "gpt-4o-2024-11-20", 128000, 16384, 2.5, 10.0, 600, 0.7, ["text", "code", "vision", "tool_use", "structured_output"], None, "available", True),
+        ("GPT-4o mini", ModelProvider.OPENAI, "gpt-4o-mini-2024-07-18", 128000, 16384, 0.15, 0.60, 300, 0.7, ["text", "code", "tool_use", "structured_output"], "gpt-4o", "available", True),
+        ("o3-mini", ModelProvider.OPENAI, "o3-mini-2025-01-31", 200000, 100000, 1.1, 4.4, 1500, 0.7, ["text", "code", "reasoning", "tool_use"], None, "available", True),
+        # Google
+        ("Gemini 2.5 Pro", ModelProvider.GOOGLE, "gemini-2.5-pro-20250325", 1000000, 8192, 1.25, 5.0, 700, 0.7, ["text", "code", "vision", "audio", "tool_use", "structured_output"], None, "available", True),
+        ("Gemini 2.5 Flash", ModelProvider.GOOGLE, "gemini-2.5-flash-20250325", 1000000, 8192, 0.075, 0.30, 200, 0.7, ["text", "code", "vision", "tool_use", "structured_output"], "gemini-2.5-pro", "available", True),
+        # Azure
+        ("GPT-4o (Azure)", ModelProvider.AZURE, "gpt-4o-azure-deploy", 128000, 16384, 2.5, 10.0, 650, 0.7, ["text", "code", "vision", "tool_use", "structured_output"], None, "available", False),
+        # Enterprise Custom
+        ("ForgeIQ Enterprise Model", ModelProvider.ENTERPRISE, "forgeiq-ent-v2", 256000, 8192, 0.0, 0.0, 900, 0.5, ["text", "code", "tool_use", "structured_output"], "claude-sonnet-4", "restricted", True),
+        # Local
+        ("Llama 3.1 70B (Local)", ModelProvider.LOCAL, "llama-3.1-70b", 128000, 4096, 0.0, 0.0, 2000, 0.5, ["text", "code"], None, "available", True),
+        ("CodeLlama 34B (Local)", ModelProvider.LOCAL, "codellama-34b", 16384, 4096, 0.0, 0.0, 1500, 0.2, ["code"], None, "available", True),
     ]
-    for name, provider, model, ctx, tok, ci, co, temp in models:
+    model_name_map: dict[str, str] = {}
+    for name, provider, model, ctx, tok, ci, co, lat, temp, caps, fallback, avail, active in models:
+        slug = name.lower().replace(" ", "-")
         m = ModelConfiguration(
             tenant_id=TENANT_ID,
             id=gen_id("model_"),
-            name=name.lower().replace(" ", "-"),
+            name=slug,
             display_name=name,
             provider=provider,
             model=model,
@@ -111,35 +124,82 @@ def _seed_models() -> None:
             token_limit=tok,
             cost_per_1k_input_cents=ci,
             cost_per_1k_output_cents=co,
+            latency_ms=lat,
             temperature=temp,
-            active=True,
+            capabilities=caps,
+            fallback_model_id=fallback,
+            availability=avail,
+            tenant_restricted=(provider == ModelProvider.ENTERPRISE),
+            tenant_restrictions=["enterprise-only"] if provider == ModelProvider.ENTERPRISE else [],
+            active=active,
             created_at=_ts(8000),
         )
         store.models.add(m)
+        model_name_map[slug] = m.id
+
+    # Set fallback model IDs by name lookup
+    for m in store.models.all():
+        if m.fallback_model_id and m.fallback_model_id in model_name_map:
+            m.fallback_model_id = model_name_map[m.fallback_model_id]
 
 
 def _seed_skills() -> None:
     skills_data = [
+        # Frontend
+        ("React", SkillCategory.FRONTEND, "React component development with hooks and modern patterns", "JavaScript", "React"),
         ("React TypeScript", SkillCategory.FRONTEND, "React 19 with TypeScript, hooks, and modern patterns", "TypeScript", "React"),
-        ("Spring Boot", SkillCategory.BACKEND, "Java Spring Boot application development and configuration", "Java", "Spring Boot"),
+        ("Angular", SkillCategory.FRONTEND, "Angular application development with modules and services", "TypeScript", "Angular"),
+        ("Vue", SkillCategory.FRONTEND, "Vue.js application development with composition API", "JavaScript", "Vue"),
+        ("HTML/CSS", SkillCategory.FRONTEND, "Semantic HTML and modern CSS with responsive design", "HTML", "CSS"),
+        ("Accessibility", SkillCategory.FRONTEND, "WCAG compliance, ARIA patterns, and accessibility auditing", "Multi", "WCAG"),
+        ("Frontend Testing", SkillCategory.FRONTEND, "Frontend component and integration testing", "TypeScript", "Testing Library"),
+        # Backend
+        ("Python", SkillCategory.BACKEND, "Python application development and scripting", "Python", ""),
         ("FastAPI", SkillCategory.BACKEND, "Python FastAPI service development", "Python", "FastAPI"),
-        ("Node.js REST", SkillCategory.BACKEND, "Node.js REST API development with Express", "JavaScript", "Express"),
-        ("JUnit 5", SkillCategory.TESTING, "Java unit testing with JUnit 5 and Mockito", "Java", "JUnit"),
+        ("Java", SkillCategory.BACKEND, "Java application development with modern patterns", "Java", ""),
+        ("Spring Boot", SkillCategory.BACKEND, "Java Spring Boot application development and configuration", "Java", "Spring Boot"),
+        ("Node.js", SkillCategory.BACKEND, "Node.js server-side development", "JavaScript", "Node.js"),
+        ("REST", SkillCategory.BACKEND, "REST API design, implementation, and documentation", "Multi", "OpenAPI"),
+        ("GraphQL", SkillCategory.BACKEND, "GraphQL schema design and resolver implementation", "Multi", "GraphQL"),
+        # Testing
+        ("JUnit", SkillCategory.TESTING, "Java unit testing with JUnit 5 and Mockito", "Java", "JUnit"),
         ("pytest", SkillCategory.TESTING, "Python testing with pytest and fixtures", "Python", "pytest"),
-        ("Playwright E2E", SkillCategory.TESTING, "End-to-end browser testing with Playwright", "TypeScript", "Playwright"),
+        ("Jest", SkillCategory.TESTING, "JavaScript and TypeScript unit testing with Jest", "TypeScript", "Jest"),
+        ("Playwright", SkillCategory.TESTING, "End-to-end browser testing with Playwright", "TypeScript", "Playwright"),
+        ("Cypress", SkillCategory.TESTING, "End-to-end browser testing with Cypress", "JavaScript", "Cypress"),
         ("API Testing", SkillCategory.TESTING, "REST API contract testing and validation", "Python", "httpx"),
-        ("Git Operations", SkillCategory.ENGINEERING, "Git branch management, merging, and conflict resolution", "Git", ""),
+        ("Integration Testing", SkillCategory.TESTING, "Service integration testing with real dependencies", "Multi", ""),
+        ("Regression Testing", SkillCategory.TESTING, "Regression test suite management and execution", "Multi", ""),
+        # Engineering
+        ("Git", SkillCategory.ENGINEERING, "Git version control operations and branch management", "Git", ""),
+        ("GitHub", SkillCategory.ENGINEERING, "GitHub repository operations, PRs, and code review workflows", "Multi", "GitHub"),
+        ("GitLab", SkillCategory.ENGINEERING, "GitLab CI/CD pipeline configuration and repository management", "Multi", "GitLab"),
+        ("Branch Management", SkillCategory.ENGINEERING, "Git branch strategy and merge conflict resolution", "Git", ""),
         ("Code Review", SkillCategory.ENGINEERING, "Automated code review with best practices enforcement", "Multi", ""),
-        ("SAST Scanning", SkillCategory.SECURITY, "Static application security testing and vulnerability detection", "Multi", "Semgrep"),
-        ("Dependency Analysis", SkillCategory.SECURITY, "SCA and dependency vulnerability analysis", "Multi", "OWASP"),
-        ("Secret Detection", SkillCategory.SECURITY, "Detection of hardcoded secrets and credentials", "Multi", "TruffleHog"),
-        ("Docker Build", SkillCategory.DELIVERY, "Container image building and optimization", "Docker", ""),
-        ("Kubernetes Deploy", SkillCategory.DELIVERY, "Kubernetes deployment and rollout management", "YAML", "kubectl"),
-        ("Helm Charts", SkillCategory.DELIVERY, "Helm chart management and deployment", "YAML", "Helm"),
-        ("Observability", SkillCategory.OPERATIONS, "Metrics, logs, and traces analysis", "Multi", "OpenTelemetry"),
+        ("Refactoring", SkillCategory.ENGINEERING, "Code refactoring for maintainability and testability", "Multi", ""),
+        ("Debugging", SkillCategory.ENGINEERING, "Systematic debugging and fault isolation", "Multi", ""),
+        # Security
+        ("SAST", SkillCategory.SECURITY, "Static application security testing and vulnerability detection", "Multi", "Semgrep"),
+        ("SCA", SkillCategory.SECURITY, "Software composition analysis and dependency vulnerability scanning", "Multi", "OWASP"),
+        ("Dependency Analysis", SkillCategory.SECURITY, "Dependency vulnerability analysis and remediation guidance", "Multi", "OWASP"),
+        ("Secret Detection", SkillCategory.SECURITY, "Detection of hardcoded secrets and credentials in source code", "Multi", "TruffleHog"),
+        ("Vulnerability Remediation", SkillCategory.SECURITY, "Implementation of fixes for identified security vulnerabilities", "Multi", ""),
+        ("Security Review", SkillCategory.SECURITY, "Security architecture review and threat modeling", "Multi", ""),
+        # Delivery
+        ("Build Automation", SkillCategory.DELIVERY, "Build pipeline configuration and optimization", "Multi", ""),
+        ("Artifact Management", SkillCategory.DELIVERY, "Artifact repository management and versioning", "Multi", ""),
+        ("Release Management", SkillCategory.DELIVERY, "Release planning, versioning, and changelog generation", "Multi", ""),
+        ("Deployment", SkillCategory.DELIVERY, "Application deployment with rollout strategies", "Multi", ""),
+        ("Kubernetes", SkillCategory.DELIVERY, "Kubernetes deployment and rollout management", "YAML", "kubectl"),
+        ("Cloud Deployment", SkillCategory.DELIVERY, "Cloud infrastructure deployment and management", "Multi", "Terraform"),
+        ("Environment Validation", SkillCategory.DELIVERY, "Environment readiness validation and health checks", "Multi", ""),
+        # Operations
+        ("Observability", SkillCategory.OPERATIONS, "Metrics, logs, and traces analysis with OpenTelemetry", "Multi", "OpenTelemetry"),
         ("Incident Analysis", SkillCategory.OPERATIONS, "Production incident analysis and root cause identification", "Multi", ""),
         ("Root Cause Analysis", SkillCategory.OPERATIONS, "Systematic root cause analysis using 5-whys and fishbone", "Multi", ""),
-        ("Refactoring", SkillCategory.ENGINEERING, "Code refactoring for maintainability and testability", "Multi", ""),
+        ("Remediation", SkillCategory.OPERATIONS, "Incident remediation with fix implementation and verification", "Multi", ""),
+        ("Rollback", SkillCategory.OPERATIONS, "Deployment rollback execution and verification", "Multi", ""),
+        ("Production Verification", SkillCategory.OPERATIONS, "Post-deployment production verification and smoke testing", "Multi", ""),
     ]
     for name, cat, desc, lang, fw in skills_data:
         s = Skill(
@@ -151,7 +211,7 @@ def _seed_skills() -> None:
             description=desc,
             language=lang,
             framework=fw,
-            capabilities=[f"code_generation", "analysis", "validation"] if cat in (SkillCategory.FRONTEND, SkillCategory.BACKEND) else ["analysis", "validation"],
+            capabilities=["code_generation", "analysis", "validation"] if cat in (SkillCategory.FRONTEND, SkillCategory.BACKEND) else ["analysis", "validation"],
             active=True,
             created_at=_ts(7000),
         )
@@ -160,23 +220,54 @@ def _seed_skills() -> None:
 
 def _seed_tools() -> None:
     tools_data = [
-        ("Git", "Git version control operations", ToolRisk.LOW, ["clone", "checkout", "status", "diff", "log", "commit"], ["development", "staging", "production"], "vcs"),
-        ("Filesystem", "File read/write operations", ToolRisk.MEDIUM, ["read", "write", "list", "search"], ["development"], "filesystem"),
-        ("Terminal", "Shell command execution", ToolRisk.HIGH, ["execute"], ["development", "staging"], "shell"),
-        ("npm", "Node.js package manager", ToolRisk.MEDIUM, ["install", "test", "run", "build"], ["development", "staging"], "package"),
-        ("Python", "Python runtime", ToolRisk.MEDIUM, ["execute", "pip", "pytest"], ["development", "staging"], "runtime"),
-        ("Maven", "Java build tool", ToolRisk.MEDIUM, ["compile", "test", "package", "verify"], ["development", "staging"], "build"),
-        ("Gradle", "Gradle build tool", ToolRisk.MEDIUM, ["build", "test", "bootJar"], ["development", "staging"], "build"),
-        ("SAST Scanner", "Static security scanner", ToolRisk.LOW, ["scan", "report"], ["development", "staging", "production"], "security"),
-        ("Dependency Scanner", "Dependency vulnerability scanner", ToolRisk.LOW, ["scan", "audit"], ["development", "staging"], "security"),
-        ("Docker", "Container runtime", ToolRisk.HIGH, ["build", "push", "run"], ["development", "staging", "production"], "container"),
-        ("kubectl", "Kubernetes CLI", ToolRisk.CRITICAL, ["apply", "rollout", "scale", "delete"], ["staging", "production"], "orchestration"),
-        ("Helm", "Kubernetes package manager", ToolRisk.HIGH, ["install", "upgrade", "rollback"], ["staging", "production"], "orchestration"),
-        ("Jira", "Issue tracking integration", ToolRisk.LOW, ["create", "update", "transition"], ["development"], "integration"),
-        ("Slack", "Notification messaging", ToolRisk.LOW, ["post"], ["development", "staging", "production"], "notification"),
-        ("GitHub API", "GitHub repository operations", ToolRisk.MEDIUM, ["pr", "review", "merge", "status"], ["development", "staging", "production"], "vcs"),
+        ("Git", "Git version control operations", ToolRisk.LOW, ["clone", "checkout", "status", "diff", "log", "commit"], ["development", "staging", "production"], "vcs",
+         {"repository": "string", "branch": "string", "operation": "string"}, {"success": "boolean", "output": "string", "files_changed": "array"}),
+        ("Filesystem", "File read/write operations", ToolRisk.MEDIUM, ["read", "write", "list", "search"], ["development"], "filesystem",
+         {"path": "string", "operation": "string", "content": "string?"}, {"success": "boolean", "content": "string?", "files": "array?"}),
+        ("Terminal", "Shell command execution", ToolRisk.HIGH, ["execute"], ["development", "staging"], "shell",
+         {"command": "string", "timeout": "integer"}, {"exit_code": "integer", "stdout": "string", "stderr": "string"}),
+        ("Shell", "Shell script execution with environment control", ToolRisk.HIGH, ["execute", "script"], ["development", "staging"], "shell",
+         {"script": "string", "env": "object"}, {"exit_code": "integer", "stdout": "string", "stderr": "string"}),
+        ("npm", "Node.js package manager", ToolRisk.MEDIUM, ["install", "test", "run", "build"], ["development", "staging"], "package",
+         {"command": "string", "args": "array"}, {"exit_code": "integer", "output": "string"}),
+        ("Python", "Python runtime", ToolRisk.MEDIUM, ["execute", "pip", "pytest"], ["development", "staging"], "runtime",
+         {"command": "string", "args": "array"}, {"exit_code": "integer", "output": "string"}),
+        ("Maven", "Java build tool", ToolRisk.MEDIUM, ["compile", "test", "package", "verify"], ["development", "staging"], "build",
+         {"goal": "string", "profile": "string?"}, {"exit_code": "integer", "output": "string", "artifact_path": "string?"}),
+        ("Gradle", "Gradle build tool", ToolRisk.MEDIUM, ["build", "test", "bootJar"], ["development", "staging"], "build",
+         {"task": "string", "args": "array"}, {"exit_code": "integer", "output": "string"}),
+        ("pytest", "Python test runner", ToolRisk.LOW, ["run", "collect", "report"], ["development", "staging"], "testing",
+         {"test_path": "string", "options": "array"}, {"passed": "integer", "failed": "integer", "skipped": "integer", "report": "string"}),
+        ("JUnit", "Java test runner", ToolRisk.LOW, ["run", "report"], ["development", "staging"], "testing",
+         {"test_class": "string"}, {"passed": "integer", "failed": "integer", "report": "string"}),
+        ("Jest", "JavaScript test runner", ToolRisk.LOW, ["run", "watch", "coverage"], ["development", "staging"], "testing",
+         {"test_path": "string", "options": "array"}, {"passed": "integer", "failed": "integer", "coverage_pct": "number"}),
+        ("Playwright", "E2E browser test runner", ToolRisk.LOW, ["run", "debug", "report"], ["development", "staging"], "testing",
+         {"spec": "string", "browser": "string"}, {"passed": "integer", "failed": "integer", "screenshots": "array"}),
+        ("Build Runner", "Generic build automation runner", ToolRisk.MEDIUM, ["build", "package", "publish"], ["development", "staging"], "build",
+         {"project": "string", "target": "string"}, {"exit_code": "integer", "artifact_path": "string"}),
+        ("SAST Scanner", "Static application security testing scanner", ToolRisk.LOW, ["scan", "report"], ["development", "staging", "production"], "security",
+         {"target_path": "string", "rules": "array?"}, {"findings": "array", "severity_counts": "object", "report": "string"}),
+        ("Dependency Scanner", "Dependency vulnerability scanner", ToolRisk.LOW, ["scan", "audit"], ["development", "staging"], "security",
+         {"project_path": "string"}, {"vulnerabilities": "array", "severity_counts": "object", "report": "string"}),
+        ("Artifact Repository", "Artifact storage and retrieval", ToolRisk.MEDIUM, ["push", "pull", "list", "delete"], ["development", "staging", "production"], "delivery",
+         {"artifact": "string", "version": "string"}, {"success": "boolean", "url": "string"}),
+        ("Deployment API", "Cloud deployment API", ToolRisk.HIGH, ["deploy", "status", "rollback"], ["staging", "production"], "delivery",
+         {"service": "string", "version": "string", "environment": "string"}, {"deployment_id": "string", "status": "string"}),
+        ("Kubernetes", "Kubernetes cluster operations", ToolRisk.CRITICAL, ["apply", "rollout", "scale", "delete", "logs"], ["staging", "production"], "orchestration",
+         {"resource": "string", "operation": "string", "namespace": "string"}, {"success": "boolean", "resources": "array"}),
+        ("Cloud API", "Cloud provider API operations", ToolRisk.HIGH, ["create", "update", "delete", "list"], ["staging", "production"], "cloud",
+         {"service": "string", "operation": "string", "params": "object"}, {"success": "boolean", "resource_id": "string?"}),
+        ("Observability API", "Metrics, logs, and traces query API", ToolRisk.LOW, ["query", "metrics", "logs", "traces"], ["development", "staging", "production"], "operations",
+         {"query": "string", "time_range": "string"}, {"results": "array", "metrics": "object"}),
+        ("Jira", "Issue tracking integration", ToolRisk.LOW, ["create", "update", "transition", "search"], ["development"], "integration",
+         {"issue_key": "string?", "operation": "string", "fields": "object"}, {"issue_key": "string", "status": "string"}),
+        ("Documentation", "Documentation generation and publishing", ToolRisk.LOW, ["generate", "publish", "update"], ["development", "staging"], "integration",
+         {"source": "string", "format": "string"}, {"url": "string", "pages": "integer"}),
+        ("Slack", "Notification messaging integration", ToolRisk.LOW, ["post", "update", "schedule"], ["development", "staging", "production"], "notification",
+         {"channel": "string", "message": "string"}, {"success": "boolean", "timestamp": "string"}),
     ]
-    for name, desc, risk, ops, envs, cat in tools_data:
+    for name, desc, risk, ops, envs, cat, inputs, outputs in tools_data:
         t = Tool(
             tenant_id=TENANT_ID,
             id=gen_id("tool_"),
@@ -188,6 +279,8 @@ def _seed_tools() -> None:
             supported_environments=envs,
             permissions=[f"tool:{name.lower().replace(' ', '_')}:execute"],
             category=cat,
+            inputs_schema={"type": "object", "properties": inputs},
+            outputs_schema={"type": "object", "properties": outputs},
             active=True,
             created_at=_ts(7000),
         )
@@ -205,17 +298,17 @@ def _seed_agents() -> None:
         ("Product Analyst", AgentCategory.PRODUCT_ANALYSIS, "Performs product analysis and user story decomposition", "Product Analysis Agent", "claude-sonnet-4", ["react-typescript"], ["git"], 10, 300, 150000),
         ("Solution Architect", AgentCategory.ARCHITECTURE, "Designs application architecture and technology selection", "Architecture Agent", "claude-sonnet-4", ["react-typescript", "spring-boot", "fastapi"], ["git", "filesystem"], 20, 900, 300000),
         ("Senior Coding Agent", AgentCategory.CODING, "Implements features and fixes with production-quality code", "Coding Agent", "claude-sonnet-4", ["react-typescript", "fastapi", "spring-boot"], ["git", "filesystem", "terminal", "npm", "python"], 25, 1800, 500000),
-        ("Code Reviewer", AgentCategory.CODE_REVIEW, "Reviews code changes for quality, security, and best practices", "Code Review Agent", "claude-sonnet-4", ["code-review", "refactoring"], ["git", "github-api"], 15, 600, 200000),
-        ("Test Generator", AgentCategory.TEST_GENERATION, "Generates comprehensive test suites for new and existing code", "Test Agent", "claude-sonnet-4", ["pytest", "junit-5", "playwright-e2e", "api-testing"], ["python", "npm"], 20, 900, 300000),
-        ("Security Analyst", AgentCategory.SECURITY, "Performs security analysis and vulnerability assessment", "Security Agent", "claude-sonnet-4", ["sast-scanning", "dependency-analysis", "secret-detection"], ["sast-scanner", "dependency-scanner"], 15, 600, 200000),
-        ("Build Engineer", AgentCategory.BUILD, "Manages build automation and artifact creation", "Build Agent", "gpt-4o", ["docker-build"], ["docker", "npm", "maven", "gradle"], 10, 600, 100000),
-        ("Release Planner", AgentCategory.RELEASE_PLANNING, "Plans releases with change impact analysis and versioning", "Release Agent", "claude-sonnet-4", ["git-operations"], ["git", "github-api", "jira"], 10, 300, 100000),
+        ("Code Reviewer", AgentCategory.CODE_REVIEW, "Reviews code changes for quality, security, and best practices", "Code Review Agent", "claude-sonnet-4", ["code-review", "refactoring"], ["git"], 15, 600, 200000),
+        ("Test Generator", AgentCategory.TEST_GENERATION, "Generates comprehensive test suites for new and existing code", "Test Agent", "claude-sonnet-4", ["pytest", "junit", "playwright", "api-testing"], ["python", "npm"], 20, 900, 300000),
+        ("Security Analyst", AgentCategory.SECURITY, "Performs security analysis and vulnerability assessment", "Security Agent", "claude-sonnet-4", ["sast", "dependency-analysis", "secret-detection"], ["sast-scanner", "dependency-scanner"], 15, 600, 200000),
+        ("Build Engineer", AgentCategory.BUILD, "Manages build automation and artifact creation", "Build Agent", "gpt-4o", ["build-automation"], ["build-runner", "npm", "maven", "gradle"], 10, 600, 100000),
+        ("Release Planner", AgentCategory.RELEASE_PLANNING, "Plans releases with change impact analysis and versioning", "Release Agent", "claude-sonnet-4", ["git", "release-management"], ["git", "jira"], 10, 300, 100000),
         ("Release Notes Writer", AgentCategory.RELEASE_NOTES, "Generates comprehensive release notes from evidence", "Release Notes Agent", "claude-sonnet-4", [], [], 5, 300, 50000),
-        ("Deployment Engineer", AgentCategory.DEPLOYMENT, "Executes deployments with rollout strategies", "Deployment Agent", "gpt-4o", ["kubernetes-deploy", "helm-charts"], ["kubectl", "helm", "docker"], 10, 900, 100000),
-        ("Verification Agent", AgentCategory.VERIFICATION, "Verifies deployments through health checks and smoke tests", "Verification Agent", "gpt-4o-mini", [], [], 10, 300, 50000),
-        ("Incident Analyst", AgentCategory.INCIDENT_ANALYSIS, "Analyzes production incidents and identifies root causes", "Incident Agent", "claude-sonnet-4", ["incident-analysis", "observability"], ["terminal"], 15, 600, 200000),
-        ("Root Cause Analyst", AgentCategory.ROOT_CAUSE, "Performs systematic root cause analysis", "RCA Agent", "claude-sonnet-4", [], [], 15, 600, 200000),
-        ("Remediation Agent", AgentCategory.REMEDIATION, "Implements fixes for identified issues and incidents", "Remediation Agent", "claude-sonnet-4", [], [], 20, 1800, 500000),
+        ("Deployment Engineer", AgentCategory.DEPLOYMENT, "Executes deployments with rollout strategies", "Deployment Agent", "gpt-4o", ["kubernetes", "deployment"], ["kubernetes", "deployment-api"], 10, 900, 100000),
+        ("Verification Agent", AgentCategory.VERIFICATION, "Verifies deployments through health checks and smoke tests", "Verification Agent", "gpt-4o-mini", ["production-verification"], [], 10, 300, 50000),
+        ("Incident Analyst", AgentCategory.INCIDENT_ANALYSIS, "Analyzes production incidents and identifies root causes", "Incident Agent", "claude-sonnet-4", ["incident-analysis", "observability"], ["terminal", "observability-api"], 15, 600, 200000),
+        ("Root Cause Analyst", AgentCategory.ROOT_CAUSE, "Performs systematic root cause analysis", "RCA Agent", "claude-sonnet-4", ["root-cause-analysis"], [], 15, 600, 200000),
+        ("Remediation Agent", AgentCategory.REMEDIATION, "Implements fixes for identified issues and incidents", "Remediation Agent", "claude-sonnet-4", ["remediation", "rollback"], [], 20, 1800, 500000),
     ]
 
     for name, cat, purpose, role, model_key, skill_names, tool_names, max_turns, timeout, token_budget in agents_data:
@@ -454,7 +547,7 @@ def _seed_graphs() -> None:
     g3.nodes = [
         GraphNode(id="d1", node_type=GraphNodeType.APPROVAL, label="Deployment Approval", position_x=100, position_y=50),
         GraphNode(id="d2", node_type=GraphNodeType.AGENT, label="Deploy", ref_id=agents.get("deployment-engineer"), position_x=100, position_y=200),
-        GraphNode(id="d3", node_type=GraphNodeType.TOOL, label="kubectl", ref_id=tools.get("kubectl"), position_x=100, position_y=350),
+        GraphNode(id="d3", node_type=GraphNodeType.TOOL, label="Kubernetes", ref_id=tools.get("kubernetes"), position_x=100, position_y=350),
         GraphNode(id="d4", node_type=GraphNodeType.AGENT, label="Verify", ref_id=agents.get("verification-agent"), position_x=350, position_y=350),
         GraphNode(id="d5", node_type=GraphNodeType.CONDITION, label="Health Check", position_x=225, position_y=500),
         GraphNode(id="d6", node_type=GraphNodeType.EVIDENCE, label="Deployment Evidence", position_x=225, position_y=650),
@@ -512,14 +605,14 @@ def _seed_harnesses() -> None:
 
     harnesses_data = [
         ("Development Harness", "development-harness", HarnessType.DEVELOPMENT, "Governed development execution from requirement to tested code", "development-graph", ["test-fix-loop", "validation-loop"], ["requirement-analyst", "solution-architect", "senior-coding-agent", "code-reviewer", "test-generator"], ["react-typescript", "fastapi", "spring-boot"], ["git", "filesystem", "terminal", "npm", "python"], "development", 5000, 3600, False),
-        ("Testing Harness", "testing-harness", HarnessType.TESTING, "Comprehensive test execution with coverage analysis", "development-graph", ["test-fix-loop", "retry-loop"], ["test-generator", "code-reviewer"], ["pytest", "junit-5", "playwright-e2e", "api-testing"], ["python", "npm", "maven", "gradle"], "development", 2000, 1800, False),
-        ("Security Harness", "security-harness", HarnessType.SECURITY, "Security scanning and vulnerability assessment with remediation", "security-graph", ["security-remediation-loop"], ["security-analyst"], ["sast-scanning", "dependency-analysis", "secret-detection"], ["sast-scanner", "dependency-scanner"], "development", 3000, 1800, False),
-        ("Build Harness", "build-harness", HarnessType.BUILD, "Build automation and artifact creation", "development-graph", ["retry-loop"], ["build-engineer"], ["docker-build"], ["docker", "npm", "maven", "gradle"], "staging", 2000, 1800, False),
-        ("Release Harness", "release-harness", HarnessType.RELEASE, "Release planning with change impact analysis and approval gates", "development-graph", ["validation-loop"], ["release-planner", "release-notes-writer"], ["git-operations"], ["git", "github-api", "jira"], "staging", 1000, 900, True),
-        ("Deployment Harness", "deployment-harness", HarnessType.DEPLOYMENT, "Production deployment with verification and rollback capability", "deployment-graph", ["deployment-verification-loop", "rollback-loop"], ["deployment-engineer", "verification-agent"], ["kubernetes-deploy", "helm-charts"], ["kubectl", "helm", "docker"], "production", 5000, 3600, True),
-        ("Verification Harness", "verification-harness", HarnessType.VERIFICATION, "Post-deployment verification with health checks and smoke tests", "deployment-graph", ["retry-loop"], ["verification-agent"], [], ["kubectl", "terminal"], "production", 1000, 600, False),
-        ("Incident Remediation Harness", "incident-remediation-harness", HarnessType.INCIDENT, "Production incident analysis and remediation with rollback", "deployment-graph", ["incident-remediation-loop", "rollback-loop"], ["incident-analyst", "root-cause-analyst", "remediation-agent"], ["observability", "incident-analysis", "root-cause-analysis"], ["terminal", "kubectl"], "production", 10000, 7200, True),
-        ("Brownfield Discovery Harness", "brownfield-discovery-harness", HarnessType.BROWNFIELD_DISCOVERY, "Repository discovery and semantic model building for existing codebases", "development-graph", ["retry-loop"], ["solution-architect", "code-reviewer"], ["git-operations", "code-review"], ["git", "filesystem", "terminal"], "development", 3000, 3600, False),
+        ("Testing Harness", "testing-harness", HarnessType.TESTING, "Comprehensive test execution with coverage analysis", "development-graph", ["test-fix-loop", "retry-loop"], ["test-generator", "code-reviewer"], ["pytest", "junit", "playwright", "api-testing"], ["python", "npm", "maven", "gradle"], "development", 2000, 1800, False),
+        ("Security Harness", "security-harness", HarnessType.SECURITY, "Security scanning and vulnerability assessment with remediation", "security-graph", ["security-remediation-loop"], ["security-analyst"], ["sast", "dependency-analysis", "secret-detection"], ["sast-scanner", "dependency-scanner"], "development", 3000, 1800, False),
+        ("Build Harness", "build-harness", HarnessType.BUILD, "Build automation and artifact creation", "development-graph", ["retry-loop"], ["build-engineer"], ["build-automation"], ["build-runner", "npm", "maven", "gradle"], "staging", 2000, 1800, False),
+        ("Release Harness", "release-harness", HarnessType.RELEASE, "Release planning with change impact analysis and approval gates", "development-graph", ["validation-loop"], ["release-planner", "release-notes-writer"], ["git", "release-management"], ["git", "jira"], "staging", 1000, 900, True),
+        ("Deployment Harness", "deployment-harness", HarnessType.DEPLOYMENT, "Production deployment with verification and rollback capability", "deployment-graph", ["deployment-verification-loop", "rollback-loop"], ["deployment-engineer", "verification-agent"], ["kubernetes", "deployment"], ["kubernetes", "deployment-api"], "production", 5000, 3600, True),
+        ("Verification Harness", "verification-harness", HarnessType.VERIFICATION, "Post-deployment verification with health checks and smoke tests", "deployment-graph", ["retry-loop"], ["verification-agent"], ["production-verification"], ["kubernetes", "terminal"], "production", 1000, 600, False),
+        ("Incident Remediation Harness", "incident-remediation-harness", HarnessType.INCIDENT, "Production incident analysis and remediation with rollback", "deployment-graph", ["incident-remediation-loop", "rollback-loop"], ["incident-analyst", "root-cause-analyst", "remediation-agent"], ["observability", "incident-analysis", "root-cause-analysis"], ["terminal", "kubernetes", "observability-api"], "production", 10000, 7200, True),
+        ("Brownfield Discovery Harness", "brownfield-discovery-harness", HarnessType.BROWNFIELD_DISCOVERY, "Repository discovery and semantic model building for existing codebases", "development-graph", ["retry-loop"], ["solution-architect", "code-reviewer"], ["git", "code-review"], ["git", "filesystem", "terminal"], "development", 3000, 3600, False),
         ("Architecture Harness", "architecture-harness", HarnessType.ARCHITECTURE, "Architecture analysis and design with technology selection", "development-graph", ["validation-loop"], ["solution-architect", "requirement-analyst"], ["react-typescript", "spring-boot", "fastapi"], ["git", "filesystem"], "development", 3000, 1800, False),
     ]
 

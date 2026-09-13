@@ -30,3 +30,5 @@ class Tool(TenantOwned):
     active: bool = True
     category: str = "execution"
     input_validation: dict = Field(default_factory=dict)
+    inputs_schema: dict = Field(default_factory=lambda: {"type": "object", "properties": {}})
+    outputs_schema: dict = Field(default_factory=lambda: {"type": "object", "properties": {}})

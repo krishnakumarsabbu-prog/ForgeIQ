@@ -21,9 +21,27 @@ class SkillCreate(BaseModel):
     tenant_id: str = "tenant_forgeiq"
 
 
+class SkillUpdate(BaseModel):
+    display_name: str | None = None
+    category: SkillCategory | None = None
+    description: str | None = None
+    language: str | None = None
+    framework: str | None = None
+    capabilities: list[str] | None = None
+    active: bool | None = None
+
+
 @router.get("")
-def list_skills(tenant_id: str = "tenant_forgeiq"):
-    return store.skills.all(tenant_id)
+def list_skills(tenant_id: str = "tenant_forgeiq", category: str | None = None):
+    skills = store.skills.all(tenant_id)
+    if category:
+        skills = [s for s in skills if s.category.value == category]
+    return skills
+
+
+@router.get("/categories")
+def list_categories():
+    return [{"value": c.value, "label": c.value} for c in SkillCategory]
 
 
 @router.get("/{skill_id}")
@@ -50,3 +68,19 @@ def create_skill(body: SkillCreate):
     )
     store.skills.add(s)
     return s
+
+
+@router.put("/{skill_id}")
+def update_skill(skill_id: str, body: SkillUpdate):
+    s = store.skills.get(skill_id)
+    if not s:
+        raise HTTPException(404, "Skill not found")
+    patch = body.model_dump(exclude_none=True)
+    return store.skills.update(skill_id, patch)
+
+
+@router.delete("/{skill_id}")
+def delete_skill(skill_id: str):
+    if not store.skills.delete(skill_id):
+        raise HTTPException(404, "Skill not found")
+    return {"deleted": True}

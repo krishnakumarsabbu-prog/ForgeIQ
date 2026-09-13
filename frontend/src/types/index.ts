@@ -200,6 +200,9 @@ export interface Tool {
   agent_ids: string[]
   active: boolean
   category: string
+  input_validation: Record<string, unknown>
+  inputs_schema: Record<string, unknown>
+  outputs_schema: Record<string, unknown>
   created_at: string
 }
 
@@ -213,10 +216,17 @@ export interface ModelConfiguration {
   token_limit: number
   cost_per_1k_input_cents: number
   cost_per_1k_output_cents: number
+  latency_ms: number
   temperature: number
   structured_output: boolean
+  capabilities: string[]
+  routing: Record<string, unknown>
+  fallback_model_id?: string
   availability: string
+  tenant_restricted: boolean
+  tenant_restrictions: string[]
   active: boolean
+  max_concurrent: number
   created_at: string
 }
 
