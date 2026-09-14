@@ -1,105 +1,109 @@
-import { Link } from 'react-router-dom'
-import { Clock, Cpu, Hash, FileText, ChevronRight } from 'lucide-react'
-import { useEvidence } from '../hooks/useQueries'
-import { PageHeader, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
+import { useNavigate } from 'react-router-dom'
+import { useAuditLogs } from '../hooks/useQueries'
+import { PageHeader, StatusBadge, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
+import { StatCard, EnterpriseCard, SectionHeader } from '../components/ui/EnterpriseHelpers'
+import { ScrollText, Search, Filter, X, User, Clock, Shield, Activity } from 'lucide-react'
+import { useState, useMemo } from 'react'
 
-const typeColors: Record<string, string> = {
-  code: 'bg-forgeiq-50 text-forgeiq-700 border border-forgeiq-200',
-  test: 'bg-blue-50 text-blue-700 border border-blue-200',
-  security: 'bg-red-50 text-red-700 border border-red-200',
-  review: 'bg-amber-50 text-amber-700 border border-amber-200',
-  build: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  decision: 'bg-slate-100 text-slate-700 border border-slate-300',
-}
-
-function formatTimestamp(ts: string): string {
+function formatTime(ts?: string): string {
   if (!ts) return '—'
-  const d = new Date(ts)
-  if (isNaN(d.getTime())) return ts
-  return d.toLocaleString(undefined, { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return new Date(ts).toLocaleString(undefined, { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 export default function AuditPage() {
-  const { data: evidence, isLoading } = useEvidence()
+  const { data: logs, isLoading } = useAuditLogs()
+  const [search, setSearch] = useState('')
 
-  if (isLoading) {
-    return (
-      <div className="fi-card">
-        <PageHeader title="Audit Trail" description="Chronological evidence log for compliance and traceability" />
-        <LoadingSpinner />
-      </div>
+  const filtered = useMemo(() => {
+    if (!logs) return []
+    if (!search) return logs
+    const q = search.toLowerCase()
+    return logs.filter((l: any) =>
+      l.action?.toLowerCase().includes(q) ||
+      l.actor?.toLowerCase().includes(q) ||
+      l.resource_type?.toLowerCase().includes(q)
     )
-  }
-
-  const items = [...(evidence ?? [])].sort((a, b) =>
-    new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  )
+  }, [logs, search])
 
   return (
-    <div className="fi-card">
+    <>
       <PageHeader
         title="Audit Trail"
-        description="Chronological evidence log for compliance and traceability"
-        actions={<span className="text-xs text-slate-500">{items.length} entries</span>}
+        description="Immutable audit log of all platform actions, governance decisions, and access events."
+        icon={<ScrollText size={18} />}
+        badge="Compliance"
+        badgeVariant="violet"
       />
-      {items.length === 0 ? (
-        <EmptyState message="No audit entries available" />
-      ) : (
-        <div className="px-6 py-4">
-          <div className="relative">
-            <div className="absolute left-3 top-0 bottom-0 w-px bg-slate-200" />
-            <div className="space-y-3">
-              {items.map((ev) => (
-                <div key={ev.id} className="relative pl-8">
-                  <div className="absolute left-1.5 top-3 h-3 w-3 rounded-full bg-forgeiq-600 border-2 border-white" />
-                  <div className="fi-card p-3 hover:border-forgeiq-200 transition-colors">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`fi-badge ${typeColors[ev.evidence_type] || 'bg-slate-50 text-slate-600 border border-slate-200'}`}>
-                            {ev.evidence_type}
-                          </span>
-                          <span className="flex items-center gap-1 text-xs text-slate-500">
-                            <Clock className="h-3 w-3" />
-                            {formatTimestamp(ev.timestamp)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-slate-700 mt-1.5">{ev.summary || '—'}</p>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
-                          {ev.agent_id && (
-                            <span className="flex items-center gap-1">
-                              <Cpu className="h-3 w-3" />
-                              <Link to={`/agents/${ev.agent_id}`} className="font-mono text-forgeiq-600 hover:underline">
-                                {ev.agent_id.slice(0, 8)}…
-                              </Link>
-                            </span>
-                          )}
-                          {ev.model_used && (
-                            <span className="flex items-center gap-1">
-                              <FileText className="h-3 w-3" />
-                              {ev.model_used}
-                            </span>
-                          )}
-                          <Link to={`/executions/${ev.execution_id}`} className="flex items-center gap-1 font-mono text-forgeiq-600 hover:underline">
-                            exec {ev.execution_id.slice(0, 8)}…
-                            <ChevronRight className="h-3 w-3" />
-                          </Link>
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="flex items-center gap-1 text-xs text-slate-400">
-                          <Hash className="h-3 w-3" />
-                          <code className="font-mono">{ev.hash.slice(0, 16)}…</code>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+
+      <div className="p-6 space-y-4 max-w-[1800px] mx-auto">
+        <div className="grid grid-cols-4 gap-4">
+          <StatCard label="Total Events"   value={logs?.length ?? 0}  sub="All time"     icon={ScrollText} gradient={['#7c3aed','#4f46e5']} />
+          <StatCard label="Today"          value={logs?.filter((l:any) => new Date(l.created_at).toDateString() === new Date().toDateString()).length ?? 0} sub="Events today" icon={Clock} gradient={['#00adef','#0a68f4']} />
+          <StatCard label="Actors"         value={new Set(logs?.map((l:any) => l.actor).filter(Boolean)).size} sub="Unique users" icon={User} gradient={['#10b981','#0891b2']} />
+          <StatCard label="Resources"      value={new Set(logs?.map((l:any) => l.resource_type).filter(Boolean)).size} sub="Types" icon={Shield} gradient={['#f59e0b','#f97316']} />
+        </div>
+
+        <div className="rounded-2xl px-4 py-3 flex items-center gap-3" style={{ background: '#fff', border: '1px solid rgba(226,232,240,0.8)' }}>
+          <Filter size={14} className="text-slate-400" />
+          <div className="relative flex-1">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by action, actor, or resource..." className="fi-input pl-9" />
+            {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"><X size={13} /></button>}
           </div>
         </div>
-      )}
-    </div>
+
+        <EnterpriseCard>
+          <SectionHeader icon={ScrollText} title="Audit Event Log" subtitle={`${filtered.length} events recorded`} iconColor="#7c3aed" />
+          {isLoading ? (
+            <LoadingSpinner message="Loading audit trail..." />
+          ) : !filtered.length ? (
+            <EmptyState message="No audit events found" description="Platform actions will appear here for compliance review." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="fi-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th><th>Actor</th><th>Action</th>
+                    <th>Resource Type</th><th>Resource ID</th><th>Result</th>
+                    <th>IP Address</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.slice(0, 200).map((log: any) => (
+                    <tr key={log.id} className="group">
+                      <td className="text-[11px] font-mono text-slate-500 whitespace-nowrap">{formatTime(log.created_at)}</td>
+                      <td>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-black shrink-0"
+                            style={{ background: 'linear-gradient(135deg,#00adef,#7c3aed)' }}>
+                            {(log.actor || 'S').charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-xs font-medium text-slate-700">{log.actor || 'System'}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-lg" style={{ background: 'rgba(14,165,233,0.08)', color: '#0284c7', border: '1px solid rgba(14,165,233,0.15)' }}>
+                          {log.action}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold capitalize" style={{ background: 'rgba(100,116,139,0.1)', color: '#475569', border: '1px solid rgba(100,116,139,0.2)' }}>
+                          {log.resource_type}
+                        </span>
+                      </td>
+                      <td className="font-mono text-[11px] text-slate-400">{(log.resource_id || '').slice(0, 12)}…</td>
+                      <td>
+                        <StatusBadge status={log.result === 'success' ? 'SUCCESS' : log.result === 'failure' ? 'FAILED' : 'NEUTRAL'} />
+                      </td>
+                      <td className="font-mono text-[11px] text-slate-400">{log.ip_address || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </EnterpriseCard>
+      </div>
+    </>
   )
 }

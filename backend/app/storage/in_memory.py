@@ -117,10 +117,28 @@ class InMemoryStore:
         from ..domain.models.brownfield_import import BrownfieldImport
         from ..domain.models.peer_engineering import PeerEngineeringSession
         from ..domain.models.incident import Incident
+        from ..domain.models.delivery_state import (
+            DeliveryProduct, Epic, Story, DeliveryTeam, Sprint,
+            DeliveryDependency, DeliveryRisk, DeliveryRecommendation,
+            DeliveryAction, DeliveryForecast, DeliveryState,
+        )
         self.engineering_plans: InMemoryTable[EngineeringPlan] = InMemoryTable()
         self.brownfield_imports: InMemoryTable[BrownfieldImport] = InMemoryTable()
         self.peer_sessions: InMemoryTable[PeerEngineeringSession] = InMemoryTable()
         self.incidents: InMemoryTable[Incident] = InMemoryTable()
+
+        # Delivery Intelligence (AI Scrum Master) Tables
+        self.delivery_products: InMemoryTable[DeliveryProduct] = InMemoryTable()
+        self.epics: InMemoryTable[Epic] = InMemoryTable()
+        self.stories: InMemoryTable[Story] = InMemoryTable()
+        self.delivery_teams: InMemoryTable[DeliveryTeam] = InMemoryTable()
+        self.sprints: InMemoryTable[Sprint] = InMemoryTable()
+        self.delivery_dependencies: InMemoryTable[DeliveryDependency] = InMemoryTable()
+        self.delivery_risks: InMemoryTable[DeliveryRisk] = InMemoryTable()
+        self.delivery_recommendations: InMemoryTable[DeliveryRecommendation] = InMemoryTable()
+        self.delivery_actions: InMemoryTable[DeliveryAction] = InMemoryTable()
+        self.delivery_forecasts: InMemoryTable[DeliveryForecast] = InMemoryTable()
+        self.delivery_states: InMemoryTable[DeliveryState] = InMemoryTable()
 
 
 store = InMemoryStore()

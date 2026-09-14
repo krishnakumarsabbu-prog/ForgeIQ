@@ -1,172 +1,93 @@
-import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
-import { Cpu, Activity, TrendingUp, DollarSign, CheckCircle2, XCircle, Hash } from 'lucide-react'
-import { useExecutions } from '../hooks/useQueries'
-import { PageHeader, StatusBadge, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
-import type { Execution, ExecutionEvent } from '../types'
+import { useNavigate } from 'react-router-dom'
+import { useAgentExecutions } from '../hooks/useQueries'
+import { PageHeader, StatusBadge, StageStepIndicator, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
+import { StatCard, EnterpriseCard, SectionHeader } from '../components/ui/EnterpriseHelpers'
+import { Bot, Activity, CheckCircle2, XCircle, Coins, ChevronRight, RotateCcw } from 'lucide-react'
 
-interface AgentStats {
-  agentId: string
-  total: number
-  successes: number
-  failures: number
-  totalTokens: number
-  totalCostCents: number
-  executions: Execution[]
-}
-
-function truncateId(id: string, len = 8): string {
-  return id ? `${id.slice(0, len)}…` : '—'
-}
-
-function formatCost(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`
-}
-
-function formatTokens(tokens: number): string {
-  if (tokens >= 1000000) return `${(tokens / 1000000).toFixed(1)}M`
-  if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}K`
-  return String(tokens)
+function formatCost(cents: number) { return `$${(cents/100).toFixed(3)}` }
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  return `${Math.floor(mins/60)}h ago`
 }
 
 export default function AgentExecutionsPage() {
-  const { data: executions, isLoading } = useExecutions()
+  const navigate = useNavigate()
+  const { data: executions, isLoading } = useAgentExecutions()
 
-  const grouped = useMemo(() => {
-    const items = executions ?? []
-    const map = new Map<string, AgentStats>()
-
-    for (const ex of items) {
-      const agentId = ex.events.find((e: ExecutionEvent) => e.agent_id)?.agent_id || 'unknown'
-      if (!map.has(agentId)) {
-        map.set(agentId, {
-          agentId,
-          total: 0,
-          successes: 0,
-          failures: 0,
-          totalTokens: 0,
-          totalCostCents: 0,
-          executions: [],
-        })
-      }
-      const stats = map.get(agentId)!
-      stats.total++
-      if (ex.status === 'COMPLETED') stats.successes++
-      if (ex.status === 'FAILED') stats.failures++
-      stats.totalTokens += ex.tokens_used || 0
-      stats.totalCostCents += ex.cost_cents || 0
-      stats.executions.push(ex)
-    }
-
-    return Array.from(map.values()).sort((a, b) => b.total - a.total)
-  }, [executions])
-
-  if (isLoading) {
-    return (
-      <div className="fi-card">
-        <PageHeader title="Agent Executions" description="Execution metrics grouped by agent" />
-        <LoadingSpinner />
-      </div>
-    )
-  }
-
-  if (grouped.length === 0) {
-    return (
-      <div className="fi-card">
-        <PageHeader title="Agent Executions" description="Execution metrics grouped by agent" />
-        <EmptyState message="No executions found" />
-      </div>
-    )
-  }
+  const running   = executions?.filter(e => e.status === 'RUNNING').length ?? 0
+  const completed = executions?.filter(e => e.status === 'COMPLETED').length ?? 0
+  const failed    = executions?.filter(e => e.status === 'FAILED').length ?? 0
+  const totalCost = executions?.reduce((s, e) => s + (e.cost_cents || 0), 0) ?? 0
 
   return (
-    <div className="fi-card">
+    <>
       <PageHeader
         title="Agent Executions"
-        description="Execution metrics grouped by agent"
-        actions={<span className="text-xs text-slate-500">{grouped.length} agents</span>}
+        description="Live telemetry of all AI agent task executions — cost, tokens, status, and retry trace."
+        icon={<Bot size={18} />}
+        badge="Live Telemetry"
+        badgeVariant="cyan"
       />
-      <div className="divide-y divide-slate-100">
-        {grouped.map((stats) => {
-          const successRate = stats.total > 0 ? (stats.successes / stats.total) * 100 : 0
-          const avgTokens = stats.total > 0 ? stats.totalTokens / stats.total : 0
-          const avgCost = stats.total > 0 ? stats.totalCostCents / stats.total : 0
-          return (
-            <div key={stats.agentId} className="px-6 py-4">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="h-8 w-8 rounded-lg bg-forgeiq-50 border border-forgeiq-200 flex items-center justify-center">
-                  <Cpu className="h-4 w-4 text-forgeiq-600" />
-                </div>
-                <div>
-                  <Link to={`/agents/${stats.agentId}`} className="font-mono text-sm text-forgeiq-600 hover:underline">
-                    {stats.agentId === 'unknown' ? 'Unknown Agent' : truncateId(stats.agentId)}
-                  </Link>
-                  <div className="text-xs text-slate-500">{stats.total} executions</div>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-                <div className="fi-card p-3">
-                  <div className="text-xs text-slate-500 flex items-center gap-1"><Activity className="h-3 w-3" /> Total</div>
-                  <div className="text-lg font-semibold text-slate-800">{stats.total}</div>
-                </div>
-                <div className="fi-card p-3">
-                  <div className="text-xs text-slate-500 flex items-center gap-1"><TrendingUp className="h-3 w-3" /> Success Rate</div>
-                  <div className={`text-lg font-semibold ${successRate >= 80 ? 'text-emerald-600' : successRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-                    {successRate.toFixed(0)}%
-                  </div>
-                </div>
-                <div className="fi-card p-3">
-                  <div className="text-xs text-slate-500 flex items-center gap-1"><Hash className="h-3 w-3" /> Avg Tokens</div>
-                  <div className="text-lg font-semibold text-slate-800">{formatTokens(avgTokens)}</div>
-                </div>
-                <div className="fi-card p-3">
-                  <div className="text-xs text-slate-500 flex items-center gap-1"><DollarSign className="h-3 w-3" /> Avg Cost</div>
-                  <div className="text-lg font-semibold text-slate-800">{formatCost(avgCost)}</div>
-                </div>
-              </div>
+      <div className="p-6 space-y-5 max-w-[1800px] mx-auto">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="Running"    value={running}   sub="Active now"   icon={Activity}     gradient={['#00adef','#0a68f4']} />
+          <StatCard label="Completed"  value={completed} sub="Successful"   icon={CheckCircle2}  gradient={['#10b981','#0891b2']} />
+          <StatCard label="Failed"     value={failed}    sub="Errors"       icon={XCircle}      gradient={['#f43f5e','#e11d48']} />
+          <StatCard label="Total Spend" value={formatCost(totalCost)} sub="AI cost" icon={Coins} gradient={['#f59e0b','#f97316']} />
+        </div>
 
-              <div className="overflow-x-auto">
-                <table className="fi-table">
-                  <thead>
-                    <tr>
-                      <th>Execution ID</th>
-                      <th>Status</th>
-                      <th>Tokens</th>
-                      <th>Cost</th>
-                      <th>Retries</th>
-                      <th>Started</th>
+        <EnterpriseCard>
+          <SectionHeader icon={Bot} title="Agent Execution Ledger" subtitle={`${executions?.length ?? 0} agent task runs`} iconColor="#00adef" />
+          {isLoading ? <LoadingSpinner /> : !executions?.length ? (
+            <EmptyState message="No agent executions found" description="Agent task runs will appear here in real-time." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="fi-table">
+                <thead>
+                  <tr>
+                    <th>Execution</th><th>Agent</th><th>Status</th><th>Stage</th>
+                    <th className="text-right">Tokens</th><th className="text-right">Cost</th>
+                    <th className="text-right">Retries</th><th>Started</th><th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {executions.map((e: any) => (
+                    <tr key={e.id} onClick={() => navigate(`/executions/${e.id}`)} className="cursor-pointer group">
+                      <td><span className="font-mono text-xs font-bold" style={{ color: '#0284c7' }}>{e.id.slice(0, 12)}…</span></td>
+                      <td>
+                        <div className="flex items-center gap-1.5">
+                          <Bot size={12} className="text-sky-500" />
+                          <span className="text-xs font-medium text-slate-700">{e.agent_name || e.agent_id?.slice(0, 16)}</span>
+                        </div>
+                      </td>
+                      <td><StatusBadge status={e.status} /></td>
+                      <td>
+                        <span className="font-mono text-[11px] px-2 py-0.5 rounded-lg" style={{ background: 'rgba(14,165,233,0.08)', color: '#0284c7', border: '1px solid rgba(14,165,233,0.15)' }}>
+                          {e.current_stage || 'idle'}
+                        </span>
+                      </td>
+                      <td className="text-right font-mono text-xs text-slate-600">{(e.tokens_used || 0).toLocaleString()}</td>
+                      <td className="text-right font-mono text-xs font-bold text-slate-700">{formatCost(e.cost_cents || 0)}</td>
+                      <td className="text-right font-mono text-xs text-slate-600">
+                        <div className="flex items-center justify-end gap-1">
+                          {e.retry_count > 0 && <RotateCcw size={10} className="text-amber-500" />}
+                          {e.retry_count || 0}
+                        </div>
+                      </td>
+                      <td className="text-xs text-slate-400">{timeAgo(e.started_at)}</td>
+                      <td><ChevronRight size={14} className="text-slate-200 group-hover:text-sky-500 transition-colors" /></td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {stats.executions.slice(0, 10).map((ex) => (
-                      <tr key={ex.id} className="hover:bg-slate-50">
-                        <td>
-                          <Link to={`/executions/${ex.id}`} className="font-mono text-xs text-forgeiq-600 hover:underline">
-                            {truncateId(ex.id)}
-                          </Link>
-                        </td>
-                        <td><StatusBadge status={ex.status} /></td>
-                        <td className="text-slate-600">{formatTokens(ex.tokens_used || 0)}</td>
-                        <td className="text-slate-600">{formatCost(ex.cost_cents || 0)}</td>
-                        <td className="text-slate-600">{ex.retry_count}</td>
-                        <td className="text-slate-500 whitespace-nowrap text-xs">
-                          {ex.started_at ? new Date(ex.started_at).toLocaleString(undefined, { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {stats.executions.length > 10 && (
-                <div className="text-xs text-slate-400 text-center py-2">
-                  Showing 10 of {stats.executions.length} executions
-                </div>
-              )}
+                  ))}
+                </tbody>
+              </table>
             </div>
-          )
-        })}
+          )}
+        </EnterpriseCard>
       </div>
-    </div>
+    </>
   )
 }

@@ -19,7 +19,7 @@ import { CurrentNodePanel } from '../features/executions/CurrentNodePanel'
 import { EventStream } from '../features/executions/EventStream'
 import { LoopVisualization } from '../features/executions/LoopVisualization'
 import { ToolCallInspector } from '../features/executions/ToolCallInspector'
-import type { TreeNode } from '../features/executions/executionTree'
+import type { TreeNode } from '../features/executions/executionTreeUtils'
 import type { ExecutionEvent } from '../types'
 
 type BottomTab = 'events' | 'loops' | 'tools' | 'approvals'

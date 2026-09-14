@@ -232,6 +232,11 @@ export interface ModelConfiguration {
   active: boolean
   max_concurrent: number
   created_at: string
+  model_name?: string
+  context_window?: number
+  cost_per_1k_input_tokens?: number
+  cost_per_1k_output_tokens?: number
+  max_tokens?: number
 }
 
 export interface ModelUsageRecord {
@@ -405,6 +410,7 @@ export interface LoopStep {
   id: string
   step_type: string
   label: string
+  name?: string
   description: string
   config: Record<string, unknown>
   next_step_id?: string
@@ -430,8 +436,10 @@ export interface Loop {
   id: string
   name: string
   display_name: string
+  description?: string
   loop_type: string
   trigger: string
+  trigger_event?: string
   entry_condition?: string
   evaluation: string
   action: string
@@ -688,6 +696,8 @@ export interface PipelineTemplate {
   description: string
   category: string
   stage_definitions: Record<string, unknown>[]
+  stages?: unknown[]
+  built_in?: boolean
   current_version: string
   versions: PipelineTemplateVersion[]
   published: boolean
@@ -773,6 +783,8 @@ export interface Policy {
   rules: Record<string, unknown>[]
   enforcement: string
   active: boolean
+  enabled?: boolean
+  stage?: string
   priority: number
   created_at: string
 }
@@ -1009,6 +1021,8 @@ export interface Deployment {
   evidence_ids: string[]
   error_message?: string
   metadata: Record<string, unknown>
+  artifact_version?: string
+  deployed_at?: string
 }
 
 export interface CreateDeploymentResponse {
@@ -1445,3 +1459,215 @@ export interface Incident {
   created_at: string
   updated_at: string
 }
+
+// ─── Delivery Intelligence (AI Scrum Master) Types ─────────────────────────
+
+export type AutomationLevel =
+  | 'L0_OBSERVE'
+  | 'L1_RECOMMEND'
+  | 'L2_PREPARE'
+  | 'L3_APPROVE_AND_EXECUTE'
+  | 'L4_POLICY_AUTOMATION'
+  | 'L5_CLOSED_LOOP'
+
+export type StoryStatus = 'BACKLOG' | 'READY' | 'IN_PROGRESS' | 'IN_REVIEW' | 'TESTING' | 'BLOCKED' | 'DONE'
+export type SprintStatus = 'PLANNING' | 'ACTIVE' | 'COMPLETED' | 'CLOSED'
+
+export interface AcceptanceCriterion {
+  id: string
+  text: string
+  verified: boolean
+}
+
+export interface DeliveryStory {
+  id: string
+  tenant_id: string
+  key: string
+  title: string
+  description: string
+  epic_id?: string
+  product_id?: string
+  team_id?: string
+  status: StoryStatus
+  points: number
+  priority: 'P0' | 'P1' | 'P2' | 'P3'
+  definition_of_ready_score: number
+  dor_criteria_met: string[]
+  dor_criteria_missing: string[]
+  acceptance_criteria: AcceptanceCriterion[]
+  missing_metadata: string[]
+  risk_score: number
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  risk_explanation: string
+  stale_days: number
+  carry_over_count: number
+  split_recommended: boolean
+  split_suggestions: string[]
+  application_id?: string
+  service_name?: string
+  repository_url?: string
+  component_tag?: string
+  assignee_id?: string
+  assignee_name?: string
+  labels: string[]
+  linked_dependencies: string[]
+}
+
+export interface DeliveryTeam {
+  id: string
+  tenant_id: string
+  name: string
+  key: string
+  description: string
+  lead_name: string
+  scrum_master: string
+  members_count: number
+  capacity_hours_per_sprint: number
+  usable_capacity_hours: number
+  skills: string[]
+  capability_matrix: Record<string, number>
+  average_velocity: number
+  current_wip: number
+  active_sprint_id?: string
+}
+
+export interface SprintGoal {
+  statement: string
+  confidence_score: number
+  status: 'ON_TRACK' | 'AT_RISK' | 'OFF_TRACK'
+  key_deliverables: string[]
+}
+
+export interface DeliverySprint {
+  id: string
+  tenant_id: string
+  name: string
+  number: number
+  team_id: string
+  team_name: string
+  status: SprintStatus
+  start_date: string
+  end_date: string
+  working_days: number
+  committed_points: number
+  completed_points: number
+  carried_over_points: number
+  scope_change_points: number
+  capacity_hours: number
+  usable_capacity_hours: number
+  pto_hours_deducted: number
+  goal: SprintGoal
+  health_score: number
+  health_status: 'HEALTHY' | 'AT_RISK' | 'CRITICAL'
+  velocity_forecast: number
+  goal_achievement_prob: number
+  story_ids: string[]
+}
+
+export interface DeliveryDependency {
+  id: string
+  tenant_id: string
+  source_id: string
+  source_title: string
+  source_type: 'STORY' | 'TEAM' | 'SERVICE' | 'REPO' | 'EXTERNAL'
+  target_id: string
+  target_title: string
+  target_type: string
+  dependency_type: 'BLOCKS' | 'DEPENDS_ON' | 'API_CONTRACT' | 'SHARED_COMPONENT' | 'EXTERNAL_VENDOR'
+  critical_path: boolean
+  aging_days: number
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  blast_radius_score: number
+  status: 'ACTIVE' | 'BLOCKED' | 'RESOLVED'
+  impact_description: string
+}
+
+export interface DeliveryRisk {
+  id: string
+  tenant_id: string
+  category: 'CAPACITY' | 'DEPENDENCY' | 'TECHNICAL_DEBT' | 'VELOCITY_DECLINE' | 'REVIEW_BOTTLENECK' | 'SCOPE_CREEP' | 'BUILD_INSTABILITY'
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  title: string
+  description: string
+  probability: number
+  impact: number
+  urgency: 'IMMEDIATE' | 'THIS_SPRINT' | 'FUTURE'
+  affected_story_ids: string[]
+  affected_team_ids: string[]
+  root_cause: string
+  remediation_suggested: string
+  engineering_link?: {
+    application_id?: string
+    repository?: string
+    service?: string
+    open_pr?: string
+    failing_test?: string
+  }
+  remediation_harness_id?: string
+  status: 'ACTIVE' | 'MITIGATING' | 'RESOLVED'
+}
+
+export interface DeliveryRecommendation {
+  id: string
+  tenant_id: string
+  title: string
+  recommendation: string
+  rationale: string
+  confidence: number
+  automation_level: AutomationLevel
+  evidence_ids: string[]
+  suggested_action_type: string
+  target_entity_id: string
+  parameters?: Record<string, unknown>
+  applied?: boolean
+}
+
+export interface DeliveryAction {
+  id: string
+  tenant_id: string
+  title: string
+  action_type: string
+  description: string
+  status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'EXECUTED' | 'VERIFIED' | 'FAILED'
+  automation_level: AutomationLevel
+  initiated_by: string
+  approved_by?: string
+  payload?: Record<string, unknown>
+  execution_result?: Record<string, unknown>
+  evidence_ids: string[]
+  reversible: boolean
+}
+
+export interface DeliveryForecast {
+  id: string
+  tenant_id: string
+  target_release: string
+  epic_id?: string
+  target_date: string
+  optimistic_date: string
+  expected_date: string
+  conservative_date: string
+  confidence_score: number
+  scope_buffer_points: number
+  monte_carlo_runs: number
+}
+
+export interface DeliveryState {
+  id: string
+  tenant_id: string
+  active_sprint_id?: string
+  team_id?: string
+  health_index: number
+  goal_confidence: number
+  velocity_trend: string
+  cycle_time_days: number
+  lead_time_days: number
+  blocked_time_hours: number
+  wip_items: number
+  total_active_risks: number
+  critical_risks: number
+  open_dependencies: number
+  engineering_state_link_id?: string
+  last_scanned_at: string
+}
+

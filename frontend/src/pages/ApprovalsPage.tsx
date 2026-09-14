@@ -1,306 +1,132 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ShieldCheck, AlertTriangle, ArrowUpCircle, FileCheck, XCircle, Eye } from 'lucide-react'
-import { useApprovals, useDecideApproval, useEscalateApproval, useApprovalTypes, useEscalationTargets } from '../hooks/useQueries'
-import { PageHeader, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
-import { StatusBadge, RiskBadge } from '../components/ui/StatusBadge'
-import { SideDrawer, DetailsPanel } from '../components/ui/SideDrawer'
-import type { Approval } from '../types'
+import { useNavigate } from 'react-router-dom'
+import { useApprovals, useApproveExecution, useRejectExecution } from '../hooks/useQueries'
+import { PageHeader, StatusBadge, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
+import { StatCard, EnterpriseCard, SectionHeader } from '../components/ui/EnterpriseHelpers'
+import { CheckCircle2, XCircle, Clock, AlertTriangle, Shield, Lock, ChevronRight } from 'lucide-react'
 
-const typeIcons: Record<string, typeof ShieldCheck> = {
-  code_change: FileCheck,
-  security_exception: ShieldCheck,
-  production_deployment: AlertTriangle,
-  high_risk_change: AlertTriangle,
-  release: FileCheck,
-  policy_override: ShieldCheck,
-  failure_escalation: ArrowUpCircle,
-  human_task: Eye,
-}
-
-const typeColors: Record<string, string> = {
-  code_change: 'bg-blue-50 text-blue-700 border border-blue-200',
-  security_exception: 'bg-red-50 text-red-700 border border-red-200',
-  production_deployment: 'bg-amber-50 text-amber-700 border border-amber-200',
-  high_risk_change: 'bg-amber-50 text-amber-700 border border-amber-200',
-  release: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  policy_override: 'bg-forgeiq-50 text-forgeiq-700 border border-forgeiq-200',
-  failure_escalation: 'bg-orange-50 text-orange-700 border border-orange-200',
-  human_task: 'bg-slate-50 text-slate-700 border border-slate-200',
+function formatTimeAgo(iso?: string): string {
+  if (!iso) return 'N/A'
+  const diff = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
 }
 
 export default function ApprovalsPage() {
-  const [statusFilter, setStatusFilter] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
-  const [riskFilter, setRiskFilter] = useState('')
-  const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<Approval | null>(null)
-  const [decidedBy, setDecidedBy] = useState('')
-  const [reason, setReason] = useState('')
-  const [escalateTo, setEscalateTo] = useState('')
+  const navigate = useNavigate()
+  const { data: approvals, isLoading } = useApprovals()
+  const approveExecution = useApproveExecution()
+  const rejectExecution = useRejectExecution()
 
-  const params: Record<string, string> = {}
-  if (statusFilter) params.status = statusFilter
-  if (typeFilter) params.approval_type = typeFilter
-  if (riskFilter) params.risk_level = riskFilter
-
-  const { data: approvals, isLoading } = useApprovals(params)
-  const { data: approvalTypes } = useApprovalTypes()
-  const { data: escalationTargets } = useEscalationTargets()
-  const decideMutation = useDecideApproval()
-  const escalateMutation = useEscalateApproval()
-
-  if (isLoading) {
-    return (
-      <div className="fi-card">
-        <PageHeader title="Approvals" description="Human-in-the-loop approval management" />
-        <LoadingSpinner />
-      </div>
-    )
-  }
-
-  const items = (approvals ?? []).filter(a => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return a.requested_action.toLowerCase().includes(q) ||
-      a.reason.toLowerCase().includes(q) ||
-      a.id.toLowerCase().includes(q) ||
-      a.execution_id.toLowerCase().includes(q)
-  })
-
-  const pendingCount = items.filter(a => a.status === 'pending').length
-  const escalatedCount = items.filter(a => a.status === 'escalated').length
-  const decidedCount = items.filter(a => a.status !== 'pending').length
-
-  const handleDecide = (decision: string) => {
-    if (!selected || !decidedBy) return
-    if (decision === 'escalated') {
-      escalateMutation.mutate(
-        { id: selected.id, body: { decided_by: decidedBy, reason, escalate_to: escalateTo || undefined } },
-        { onSuccess: () => { setSelected(null); setDecidedBy(''); setReason(''); setEscalateTo('') } },
-      )
-    } else {
-      decideMutation.mutate(
-        { id: selected.id, body: { decided_by: decidedBy, decision, reason } },
-        { onSuccess: () => { setSelected(null); setDecidedBy(''); setReason('') } },
-      )
-    }
-  }
+  const pending = approvals?.filter(a => a.status === 'pending' || (a.status as string) === 'AWAITING_APPROVAL').length ?? 0
+  const approved = approvals?.filter(a => a.status === 'approved' || (a.status as string) === 'APPROVED').length ?? 0
+  const rejected = approvals?.filter(a => a.status === 'rejected' || (a.status as string) === 'REJECTED').length ?? 0
 
   return (
-    <div className="fi-card">
+    <>
       <PageHeader
-        title="Approvals"
-        description="Human-in-the-loop approval management for executions, deployments, and policy overrides"
-        breadcrumbs={[{ label: 'Governance' }, { label: 'Approvals' }]}
+        title="Approval Gates"
+        description="Review and approve autonomous execution decisions before they proceed through governance gates."
+        icon={<Shield size={18} />}
+        badge="Governance"
+        badgeVariant="amber"
       />
 
-      <div className="flex items-center gap-3 px-6 py-2.5 border-b border-slate-200 bg-white">
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search approvals..."
-          className="fi-input flex-1 max-w-xs py-1.5 text-sm"
-        />
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="fi-input py-1.5 text-sm w-40">
-          <option value="">All Statuses</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="changes_requested">Changes Requested</option>
-          <option value="escalated">Escalated</option>
-        </select>
-        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="fi-input py-1.5 text-sm w-44">
-          <option value="">All Types</option>
-          {(approvalTypes ?? []).map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
-        <select value={riskFilter} onChange={e => setRiskFilter(e.target.value)} className="fi-input py-1.5 text-sm w-36">
-          <option value="">All Risk</option>
-          <option value="LOW">Low</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="HIGH">High</option>
-          <option value="CRITICAL">Critical</option>
-        </select>
-        <div className="flex items-center gap-3 ml-auto text-xs">
-          <span className="flex items-center gap-1 text-amber-600"><span className="w-2 h-2 rounded-full bg-amber-400" />{pendingCount} pending</span>
-          <span className="flex items-center gap-1 text-orange-600"><span className="w-2 h-2 rounded-full bg-orange-400" />{escalatedCount} escalated</span>
-          <span className="flex items-center gap-1 text-slate-500"><span className="w-2 h-2 rounded-full bg-slate-400" />{decidedCount} decided</span>
+      <div className="p-6 space-y-5 max-w-[1800px] mx-auto">
+        <div className="grid grid-cols-3 gap-4">
+          <StatCard label="Pending Review"   value={pending}  sub="Awaiting decision"  icon={Clock}        gradient={['#f59e0b','#f97316']} />
+          <StatCard label="Approved"         value={approved} sub="Cleared to proceed"  icon={CheckCircle2} gradient={['#10b981','#0891b2']} />
+          <StatCard label="Rejected"         value={rejected} sub="Blocked"             icon={XCircle}      gradient={['#f43f5e','#e11d48']} />
         </div>
-      </div>
 
-      {items.length === 0 ? (
-        <EmptyState message="No approvals found" icon={<ShieldCheck size={32} />} />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="fi-table">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Execution</th>
-                <th>Requested Action</th>
-                <th>Risk</th>
-                <th>Status</th>
-                <th>Requested By</th>
-                <th>Requested At</th>
-                <th>Decided By</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((a) => {
-                const TypeIcon = typeIcons[a.approval_type] ?? AlertTriangle
-                return (
-                  <tr key={a.id} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelected(a)}>
-                    <td>
-                      <span className={`fi-badge ${typeColors[a.approval_type] || typeColors.high_risk_change}`}>
-                        <TypeIcon size={11} />
-                        {a.approval_type.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td>
-                      <Link to={`/executions/${a.execution_id}`} onClick={e => e.stopPropagation()} className="text-forgeiq-600 hover:underline font-mono text-xs">
-                        {a.execution_id.slice(0, 12)}
-                      </Link>
-                    </td>
-                    <td className="max-w-xs truncate text-sm text-slate-700">{a.requested_action || a.reason || '—'}</td>
-                    <td><RiskBadge level={a.risk_level} /></td>
-                    <td><StatusBadge status={a.status} /></td>
-                    <td className="text-xs text-slate-600">{a.requested_by}</td>
-                    <td className="text-xs text-slate-500">{new Date(a.requested_at).toLocaleString()}</td>
-                    <td className="text-xs text-slate-600">{a.decided_by || '—'}</td>
-                    <td>
-                      {a.status === 'pending' && (
-                        <span className="fi-badge bg-amber-50 text-amber-700 border border-amber-200">Action needed</span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <SideDrawer
-        open={!!selected}
-        onClose={() => { setSelected(null); setDecidedBy(''); setReason(''); setEscalateTo('') }}
-        title="Approval Detail"
-        subtitle={selected?.id}
-        width="520px"
-        footer={
-          selected?.status === 'pending' ? (
-            <div className="flex items-center gap-2 w-full">
-              <input
-                type="text"
-                value={decidedBy}
-                onChange={e => setDecidedBy(e.target.value)}
-                placeholder="Your name"
-                className="fi-input flex-1 py-1.5 text-sm"
-              />
-              <button
-                disabled={!decidedBy || decideMutation.isPending}
-                onClick={() => handleDecide('approved')}
-                className="fi-btn-primary bg-emerald-600 hover:bg-emerald-700 text-xs"
-              >
-                Approve
-              </button>
-              <button
-                disabled={!decidedBy || decideMutation.isPending}
-                onClick={() => handleDecide('rejected')}
-                className="fi-btn-secondary bg-red-50 text-red-700 border-red-200 hover:bg-red-100 text-xs"
-              >
-                Reject
-              </button>
-              <button
-                disabled={!decidedBy || decideMutation.isPending}
-                onClick={() => handleDecide('changes_requested')}
-                className="fi-btn-secondary text-xs"
-              >
-                Request Changes
-              </button>
-            </div>
-          ) : undefined
-        }
-      >
-        {selected && (
-          <div className="p-4 space-y-4">
-            <div className="flex items-center gap-2">
-              <span className={`fi-badge ${typeColors[selected.approval_type] || typeColors.high_risk_change}`}>
-                {selected.approval_type.replace(/_/g, ' ')}
-              </span>
-              <StatusBadge status={selected.status} />
-              <RiskBadge level={selected.risk_level} />
-            </div>
-
-            <DetailsPanel
-              items={[
-                { label: 'Execution', value: <Link to={`/executions/${selected.execution_id}`} className="text-forgeiq-600 hover:underline font-mono text-xs">{selected.execution_id}</Link> },
-                { label: 'Requested By', value: selected.requested_by },
-                { label: 'Requested At', value: new Date(selected.requested_at).toLocaleString() },
-                { label: 'Requested Action', value: selected.requested_action || '—' },
-                { label: 'Reason', value: selected.reason || '—' },
-                { label: 'Impact', value: selected.impact || '—' },
-                { label: 'Decided By', value: selected.decided_by || '—' },
-                { label: 'Decided At', value: selected.decided_at ? new Date(selected.decided_at).toLocaleString() : '—' },
-                { label: 'Evidence', value: selected.evidence_id ? <span className="font-mono text-xs text-slate-600">{selected.evidence_id.slice(0, 16)}</span> : '—' },
-                { label: 'Escalated To', value: selected.escalated_to || '—' },
-                { label: 'Escalated From', value: selected.escalated_from_id ? <span className="font-mono text-xs text-slate-600">{selected.escalated_from_id.slice(0, 16)}</span> : '—' },
-                { label: 'Node', value: selected.node_id || '—' },
-                { label: 'Harness', value: selected.harness_id || '—' },
-                { label: 'Pipeline', value: selected.pipeline_id || '—' },
-              ]}
-              columns={2}
-            />
-
-            {selected.status === 'pending' && (
-              <div className="space-y-3 pt-2 border-t border-slate-200">
-                <div>
-                  <label className="text-xs font-medium text-slate-600">Decision Reason</label>
-                  <textarea
-                    value={reason}
-                    onChange={e => setReason(e.target.value)}
-                    placeholder="Provide a reason for your decision..."
-                    className="fi-input min-h-[60px] text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-600">Escalate To (if escalating)</label>
-                  <select
-                    value={escalateTo}
-                    onChange={e => setEscalateTo(e.target.value)}
-                    className="fi-input py-1.5 text-sm"
-                  >
-                    <option value="">Select target...</option>
-                    {(escalationTargets ?? []).map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </div>
-                <button
-                  disabled={!decidedBy || escalateMutation.isPending}
-                  onClick={() => handleDecide('escalated')}
-                  className="fi-btn-secondary bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 text-xs w-full"
-                >
-                  <ArrowUpCircle size={14} className="inline mr-1" />
-                  Escalate Approval
-                </button>
-              </div>
-            )}
-
-            {selected.status !== 'pending' && selected.decision && (
-              <div className="pt-2 border-t border-slate-200">
-                <div className="flex items-center gap-2 mb-1">
-                  {selected.decision === 'approved' && <FileCheck size={14} className="text-emerald-600" />}
-                  {selected.decision === 'rejected' && <XCircle size={14} className="text-red-600" />}
-                  {selected.decision === 'changes_requested' && <AlertTriangle size={14} className="text-amber-600" />}
-                  {selected.decision === 'escalated' && <ArrowUpCircle size={14} className="text-orange-600" />}
-                  <span className="text-sm font-medium text-slate-700">Decision: {selected.decision.replace(/_/g, ' ')}</span>
-                </div>
-                {selected.reason && <p className="text-sm text-slate-600">{selected.reason}</p>}
-              </div>
-            )}
+        {pending > 0 && (
+          <div
+            className="rounded-2xl p-4 flex items-center gap-3"
+            style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)' }}
+          >
+            <AlertTriangle size={16} style={{ color: '#b45309' }} className="shrink-0" />
+            <span className="text-sm font-semibold" style={{ color: '#92400e' }}>
+              {pending} execution{pending > 1 ? 's' : ''} awaiting your approval
+            </span>
           </div>
         )}
-      </SideDrawer>
-    </div>
+
+        <EnterpriseCard>
+          <SectionHeader icon={Shield} title="Approval Queue" subtitle="All execution approval requests" iconColor="#f59e0b" />
+          {isLoading ? (
+            <LoadingSpinner message="Loading approval queue..." />
+          ) : !approvals?.length ? (
+            <EmptyState
+              message="No approvals pending"
+              description="Governance gates will appear here when executions require manual review."
+              icon={<CheckCircle2 size={24} className="text-slate-300" />}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="fi-table">
+                <thead>
+                  <tr>
+                    <th>Execution</th><th>Application</th><th>Stage</th><th>Reason</th>
+                    <th>Requested</th><th>Status</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {approvals.map((approval: any) => {
+                    const isPending = approval.status === 'pending' || approval.status === 'AWAITING_APPROVAL'
+                    return (
+                      <tr key={approval.id} className="group">
+                        <td>
+                          <span
+                            className="font-mono text-xs font-bold cursor-pointer"
+                            style={{ color: '#0284c7' }}
+                            onClick={() => navigate(`/executions/${approval.execution_id}`)}
+                          >
+                            {(approval.execution_id || '').slice(0, 12)}…
+                          </span>
+                        </td>
+                        <td className="font-semibold text-slate-900 text-xs">{approval.application || '—'}</td>
+                        <td>
+                          <span className="px-2 py-0.5 rounded-lg font-mono text-[11px] font-semibold" style={{ background: 'rgba(14,165,233,0.08)', color: '#0284c7', border: '1px solid rgba(14,165,233,0.15)' }}>
+                            {approval.stage || '—'}
+                          </span>
+                        </td>
+                        <td className="text-xs text-slate-600 max-w-[200px] truncate">{approval.reason || '—'}</td>
+                        <td className="text-xs text-slate-400">{formatTimeAgo(approval.created_at)}</td>
+                        <td><StatusBadge status={approval.status} /></td>
+                        <td>
+                          {isPending ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => approveExecution.mutate(approval.execution_id)}
+                                className="fi-btn-success fi-btn-sm"
+                                disabled={approveExecution.isPending}
+                              >
+                                <CheckCircle2 size={11} /> Approve
+                              </button>
+                              <button
+                                onClick={() => rejectExecution.mutate({ id: approval.execution_id, reason: 'Rejected by reviewer' })}
+                                className="fi-btn-danger fi-btn-sm"
+                                disabled={rejectExecution.isPending}
+                              >
+                                <XCircle size={11} /> Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </EnterpriseCard>
+      </div>
+    </>
   )
 }

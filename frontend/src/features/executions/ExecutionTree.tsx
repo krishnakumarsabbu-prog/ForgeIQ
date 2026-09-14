@@ -5,7 +5,8 @@ import {
   CheckCircle2, XCircle, Loader2, Clock, RotateCcw, AlertOctagon, Ban,
 } from 'lucide-react'
 import type { ExecutionEvent } from '../../types'
-import { buildExecutionTree, flattenTree, type TreeNode } from './executionTree'
+import { buildExecutionTree, flattenTree, type TreeNode } from './executionTreeUtils'
+export type { TreeNode }
 
 interface ExecutionTreeProps {
   events: ExecutionEvent[]

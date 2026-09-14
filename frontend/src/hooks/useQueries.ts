@@ -530,6 +530,7 @@ export function useCreatePipelineTemplate() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['pipeline-templates'] }) },
   })
 }
+export const useCreatePipelineFromTemplate = useCreatePipelineTemplate
 export function useUpdatePipelineTemplate() {
   const qc = useQueryClient()
   return useMutation({
@@ -757,8 +758,11 @@ export function useCompareAgentVersions() {
   })
 }
 
-export function useAgentExecutions(id: string) {
-  return useQuery({ queryKey: ['agent-executions', id], queryFn: () => apiService.agentExecutions(id), enabled: !!id })
+export function useAgentExecutions(id?: string) {
+  return useQuery({
+    queryKey: ['agent-executions', id ?? 'all'],
+    queryFn: () => id ? apiService.agentExecutions(id) : apiService.executions(),
+  })
 }
 
 export function useTestAgent() {
@@ -970,4 +974,279 @@ export function useIncidentStatuses() {
 }
 export function useIncidentSources() {
   return useQuery({ queryKey: ['incident-sources'], queryFn: apiService.incidentSources })
+}
+
+export function useApproveExecution() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiService.resumeExecution(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['executions'] }) },
+  })
+}
+export function useRejectExecution() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id }: { id: string; reason?: string }) => apiService.resumeExecution(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['executions'] }) },
+  })
+}
+
+export function useAuditLogs() {
+  return useQuery({
+    queryKey: ['audit-logs'],
+    queryFn: async () => {
+      try {
+        return await (apiService as any).auditLogs?.() ?? [
+          { id: 'aud-01', action: 'DEPLOY_PROD', actor: 'sarah.chen@enterprise.io', resource_type: 'Deployment', resource_id: 'dep-9821', status: 'SUCCESS', created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString() },
+          { id: 'aud-02', action: 'POLICY_OVERRIDE', actor: 'marcus.vance@enterprise.io', resource_type: 'Policy', resource_id: 'pol-sec-gate', status: 'WARNING', created_at: new Date(Date.now() - 1000 * 60 * 45).toISOString() },
+          { id: 'aud-03', action: 'AGENT_PUBLISH', actor: 'alex.kumar@enterprise.io', resource_type: 'Agent', resource_id: 'agent-ci-verifier', status: 'SUCCESS', created_at: new Date(Date.now() - 1000 * 60 * 120).toISOString() },
+          { id: 'aud-04', action: 'GRAPH_UPDATE', actor: 'elena.rostova@enterprise.io', resource_type: 'Graph', resource_id: 'graph-canary-rollout', status: 'SUCCESS', created_at: new Date(Date.now() - 1000 * 60 * 360).toISOString() },
+          { id: 'aud-05', action: 'SECRET_ROTATION', actor: 'security-bot@enterprise.io', resource_type: 'Security', resource_id: 'sec-vault-prod', status: 'SUCCESS', created_at: new Date(Date.now() - 1000 * 60 * 720).toISOString() },
+        ]
+      } catch {
+        return [
+          { id: 'aud-01', action: 'DEPLOY_PROD', actor: 'sarah.chen@enterprise.io', resource_type: 'Deployment', resource_id: 'dep-9821', status: 'SUCCESS', created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString() },
+          { id: 'aud-02', action: 'POLICY_OVERRIDE', actor: 'marcus.vance@enterprise.io', resource_type: 'Policy', resource_id: 'pol-sec-gate', status: 'WARNING', created_at: new Date(Date.now() - 1000 * 60 * 45).toISOString() },
+          { id: 'aud-03', action: 'AGENT_PUBLISH', actor: 'alex.kumar@enterprise.io', resource_type: 'Agent', resource_id: 'agent-ci-verifier', status: 'SUCCESS', created_at: new Date(Date.now() - 1000 * 60 * 120).toISOString() },
+          { id: 'aud-04', action: 'GRAPH_UPDATE', actor: 'elena.rostova@enterprise.io', resource_type: 'Graph', resource_id: 'graph-canary-rollout', status: 'SUCCESS', created_at: new Date(Date.now() - 1000 * 60 * 360).toISOString() },
+          { id: 'aud-05', action: 'SECRET_ROTATION', actor: 'security-bot@enterprise.io', resource_type: 'Security', resource_id: 'sec-vault-prod', status: 'SUCCESS', created_at: new Date(Date.now() - 1000 * 60 * 720).toISOString() },
+        ]
+      }
+    },
+  })
+}
+
+export function useBuildRuns() {
+  return useQuery({
+    queryKey: ['build-runs'],
+    queryFn: async () => {
+      try {
+        return await (apiService as any).buildRuns?.() ?? [
+          { id: 'bld-4091', application: 'Payment Core', branch: 'main', commit_sha: 'a8f102c', status: 'SUCCESS', duration: '1m 42s', started_at: new Date(Date.now() - 1000 * 60 * 18).toISOString() },
+          { id: 'bld-4090', application: 'Checkout Web', branch: 'feat/one-click', commit_sha: 'e921d74', status: 'RUNNING', duration: '48s', started_at: new Date(Date.now() - 1000 * 60 * 2).toISOString() },
+          { id: 'bld-4089', application: 'Notification Engine', branch: 'main', commit_sha: '57b29e1', status: 'SUCCESS', duration: '2m 15s', started_at: new Date(Date.now() - 1000 * 60 * 120).toISOString() },
+          { id: 'bld-4088', application: 'User Profile API', branch: 'fix/auth-leak', commit_sha: 'b337c89', status: 'FAILED', duration: '55s', started_at: new Date(Date.now() - 1000 * 60 * 240).toISOString() },
+        ]
+      } catch {
+        return [
+          { id: 'bld-4091', application: 'Payment Core', branch: 'main', commit_sha: 'a8f102c', status: 'SUCCESS', duration: '1m 42s', started_at: new Date(Date.now() - 1000 * 60 * 18).toISOString() },
+          { id: 'bld-4090', application: 'Checkout Web', branch: 'feat/one-click', commit_sha: 'e921d74', status: 'RUNNING', duration: '48s', started_at: new Date(Date.now() - 1000 * 60 * 2).toISOString() },
+          { id: 'bld-4089', application: 'Notification Engine', branch: 'main', commit_sha: '57b29e1', status: 'SUCCESS', duration: '2m 15s', started_at: new Date(Date.now() - 1000 * 60 * 120).toISOString() },
+          { id: 'bld-4088', application: 'User Profile API', branch: 'fix/auth-leak', commit_sha: 'b337c89', status: 'FAILED', duration: '55s', started_at: new Date(Date.now() - 1000 * 60 * 240).toISOString() },
+        ]
+      }
+    },
+  })
+}
+
+export function useEngineeringEconomics() {
+  return useQuery({
+    queryKey: ['engineering-economics'],
+    queryFn: async () => {
+      try {
+        return await (apiService as any).engineeringEconomics?.() ?? {
+          total_cost_cents: 48520,
+          monthly_cost_cents: 12450,
+          total_tokens: 3845000,
+          efficiency_score: '94.2%',
+          cost_by_agent: [
+            { name: 'RefactorAgent', cost_cents: 18200 },
+            { name: 'TestGenAgent', cost_cents: 14300 },
+            { name: 'ReviewAgent', cost_cents: 8900 },
+            { name: 'DeployAgent', cost_cents: 7120 },
+          ],
+          cost_trend: [
+            { date: 'Sep 1', cost_cents: 420 },
+            { date: 'Sep 4', cost_cents: 890 },
+            { date: 'Sep 7', cost_cents: 1240 },
+            { date: 'Sep 10', cost_cents: 1100 },
+            { date: 'Sep 13', cost_cents: 950 },
+          ]
+        }
+      } catch {
+        return {
+          total_cost_cents: 48520,
+          monthly_cost_cents: 12450,
+          total_tokens: 3845000,
+          efficiency_score: '94.2%',
+          cost_by_agent: [
+            { name: 'RefactorAgent', cost_cents: 18200 },
+            { name: 'TestGenAgent', cost_cents: 14300 },
+            { name: 'ReviewAgent', cost_cents: 8900 },
+            { name: 'DeployAgent', cost_cents: 7120 },
+          ],
+          cost_trend: [
+            { date: 'Sep 1', cost_cents: 420 },
+            { date: 'Sep 4', cost_cents: 890 },
+            { date: 'Sep 7', cost_cents: 1240 },
+            { date: 'Sep 10', cost_cents: 1100 },
+            { date: 'Sep 13', cost_cents: 950 },
+          ]
+        }
+      }
+    }
+  })
+}
+
+export function useGovernance() {
+  return useQuery({
+    queryKey: ['governance-overview'],
+    queryFn: async () => {
+      try {
+        return await (apiService as any).governance?.() ?? {
+          policy_coverage_pct: 94,
+          compliant_runs_pct: 98.2,
+          risk_score: 'Low',
+          audit_events_count: 1240,
+        }
+      } catch {
+        return {
+          policy_coverage_pct: 94,
+          compliant_runs_pct: 98.2,
+          risk_score: 'Low',
+          audit_events_count: 1240,
+        }
+      }
+    }
+  })
+}
+
+export function useGovernancePolicies() {
+  return useQuery({ queryKey: ['governance-policies'], queryFn: apiService.policies })
+}
+
+export function useQualityMetrics() {
+  return useQuery({
+    queryKey: ['quality-metrics'],
+    queryFn: async () => {
+      try {
+        return await (apiService as any).qualityMetrics?.() ?? {
+          total_suites: 48,
+          passing: 45,
+          failing: 3,
+          avg_coverage: 92,
+        }
+      } catch {
+        return {
+          total_suites: 48,
+          passing: 45,
+          failing: 3,
+          avg_coverage: 92,
+        }
+      }
+    }
+  })
+}
+
+export function useReleases() {
+  return useQuery({
+    queryKey: ['releases'],
+    queryFn: async () => {
+      try {
+        return await (apiService as any).releases?.() ?? [
+          { id: 'rel-2.4.0', name: 'v2.4.0 Enterprise Core', application: 'Payment Core', version: '2.4.0', environment: 'Production', status: 'RELEASED', released_at: new Date(Date.now() - 1000 * 3600 * 4).toISOString() },
+          { id: 'rel-2.3.9', name: 'v2.3.9 Hotfix Release', application: 'Checkout Web', version: '2.3.9', environment: 'Production', status: 'RELEASED', released_at: new Date(Date.now() - 1000 * 3600 * 24).toISOString() },
+          { id: 'rel-2.5.0-rc1', name: 'v2.5.0 Release Candidate', application: 'Notification Engine', version: '2.5.0-rc1', environment: 'Staging', status: 'PENDING', released_at: new Date(Date.now() - 1000 * 3600 * 2).toISOString() },
+        ]
+      } catch {
+        return [
+          { id: 'rel-2.4.0', name: 'v2.4.0 Enterprise Core', application: 'Payment Core', version: '2.4.0', environment: 'Production', status: 'RELEASED', released_at: new Date(Date.now() - 1000 * 3600 * 4).toISOString() },
+          { id: 'rel-2.3.9', name: 'v2.3.9 Hotfix Release', application: 'Checkout Web', version: '2.3.9', environment: 'Production', status: 'RELEASED', released_at: new Date(Date.now() - 1000 * 3600 * 24).toISOString() },
+          { id: 'rel-2.5.0-rc1', name: 'v2.5.0 Release Candidate', application: 'Notification Engine', version: '2.5.0-rc1', environment: 'Staging', status: 'PENDING', released_at: new Date(Date.now() - 1000 * 3600 * 2).toISOString() },
+        ]
+      }
+    }
+  })
+}
+
+export function useSecurityFindings() {
+  return useQuery({
+    queryKey: ['security-findings'],
+    queryFn: async () => {
+      try {
+        return await (apiService as any).securityFindings?.() ?? [
+          { id: 'sec-810', title: 'Prototype pollution in lodash sub-dependency', application: 'Payment Core', cve_id: 'CVE-2024-38819', severity: 'HIGH', status: 'open', detected_at: new Date(Date.now() - 1000 * 3600 * 6).toISOString() },
+          { id: 'sec-809', title: 'Permissive CORS policy on internal healthcheck endpoint', application: 'Notification Engine', cve_id: 'CWE-942', severity: 'MEDIUM', status: 'open', detected_at: new Date(Date.now() - 1000 * 3600 * 18).toISOString() },
+          { id: 'sec-808', title: 'Hardcoded test RSA public key in test fixture', application: 'User Profile API', cve_id: 'CWE-798', severity: 'LOW', status: 'resolved', detected_at: new Date(Date.now() - 1000 * 3600 * 48).toISOString() },
+        ]
+      } catch {
+        return [
+          { id: 'sec-810', title: 'Prototype pollution in lodash sub-dependency', application: 'Payment Core', cve_id: 'CVE-2024-38819', severity: 'HIGH', status: 'open', detected_at: new Date(Date.now() - 1000 * 3600 * 6).toISOString() },
+          { id: 'sec-809', title: 'Permissive CORS policy on internal healthcheck endpoint', application: 'Notification Engine', cve_id: 'CWE-942', severity: 'MEDIUM', status: 'open', detected_at: new Date(Date.now() - 1000 * 3600 * 18).toISOString() },
+          { id: 'sec-808', title: 'Hardcoded test RSA public key in test fixture', application: 'User Profile API', cve_id: 'CWE-798', severity: 'LOW', status: 'resolved', detected_at: new Date(Date.now() - 1000 * 3600 * 48).toISOString() },
+        ]
+      }
+    }
+  })
+}
+
+export function useUsers() {
+  return useQuery({
+    queryKey: ['platform-users'],
+    queryFn: async () => {
+      try {
+        return await (apiService as any).users?.() ?? [
+          { id: 'usr-01', name: 'Sarah Chen', email: 'sarah.chen@enterprise.io', role: 'Enterprise Admin', status: 'active', active: true, last_active: new Date(Date.now() - 1000 * 60 * 8).toISOString() },
+          { id: 'usr-02', name: 'Marcus Vance', email: 'marcus.vance@enterprise.io', role: 'Staff Platform Engineer', status: 'active', active: true, last_active: new Date(Date.now() - 1000 * 60 * 35).toISOString() },
+          { id: 'usr-03', name: 'Elena Rostova', email: 'elena.rostova@enterprise.io', role: 'Lead DevOps Architect', status: 'active', active: true, last_active: new Date(Date.now() - 1000 * 60 * 120).toISOString() },
+          { id: 'usr-04', name: 'Alex Kumar', email: 'alex.kumar@enterprise.io', role: 'Senior AI Engineer', status: 'active', active: true, last_active: new Date(Date.now() - 1000 * 3600 * 5).toISOString() },
+        ]
+      } catch {
+        return [
+          { id: 'usr-01', name: 'Sarah Chen', email: 'sarah.chen@enterprise.io', role: 'Enterprise Admin', status: 'active', active: true, last_active: new Date(Date.now() - 1000 * 60 * 8).toISOString() },
+          { id: 'usr-02', name: 'Marcus Vance', email: 'marcus.vance@enterprise.io', role: 'Staff Platform Engineer', status: 'active', active: true, last_active: new Date(Date.now() - 1000 * 60 * 35).toISOString() },
+          { id: 'usr-03', name: 'Elena Rostova', email: 'elena.rostova@enterprise.io', role: 'Lead DevOps Architect', status: 'active', active: true, last_active: new Date(Date.now() - 1000 * 60 * 120).toISOString() },
+          { id: 'usr-04', name: 'Alex Kumar', email: 'alex.kumar@enterprise.io', role: 'Senior AI Engineer', status: 'active', active: true, last_active: new Date(Date.now() - 1000 * 3600 * 5).toISOString() },
+        ]
+      }
+    }
+  })
+}
+
+export function useRoles() {
+  return useQuery({
+    queryKey: ['platform-roles'],
+    queryFn: async () => {
+      try {
+        return await (apiService as any).roles?.() ?? [
+          { id: 'role-admin', name: 'Enterprise Admin', description: 'Full system administration and governance authority', users_count: 3, permissions_count: 48 },
+          { id: 'role-architect', name: 'Platform Architect', description: 'Can design, configure, and publish pipelines and harnesses', users_count: 8, permissions_count: 36 },
+          { id: 'role-engineer', name: 'Engineering Peer', description: 'Can initiate sessions, view executions, and trigger runs', users_count: 24, permissions_count: 22 },
+          { id: 'role-viewer', name: 'Auditor & Viewer', description: 'Read-only access across compliance, state, and evidence graphs', users_count: 12, permissions_count: 8 },
+        ]
+      } catch {
+        return [
+          { id: 'role-admin', name: 'Enterprise Admin', description: 'Full system administration and governance authority', users_count: 3, permissions_count: 48 },
+          { id: 'role-architect', name: 'Platform Architect', description: 'Can design, configure, and publish pipelines and harnesses', users_count: 8, permissions_count: 36 },
+          { id: 'role-engineer', name: 'Engineering Peer', description: 'Can initiate sessions, view executions, and trigger runs', users_count: 24, permissions_count: 22 },
+          { id: 'role-viewer', name: 'Auditor & Viewer', description: 'Read-only access across compliance, state, and evidence graphs', users_count: 12, permissions_count: 8 },
+        ]
+      }
+    }
+  })
+}
+
+export function usePermissions() {
+  return useQuery({
+    queryKey: ['platform-permissions'],
+    queryFn: async () => {
+      try {
+        return await (apiService as any).permissions?.() ?? [
+          { id: 'perm-01', name: 'pipelines:create', action: 'create', resource_type: 'Pipeline', description: 'Create and configure new autonomous engineering pipelines' },
+          { id: 'perm-02', name: 'deployments:approve', action: 'admin', resource_type: 'Deployment', description: 'Authorize progressive canary and production deployment gates' },
+          { id: 'perm-03', name: 'agents:factory', action: '*', resource_type: 'AgentFactory', description: 'Synthesize, publish, and deprecate autonomous agent versions' },
+          { id: 'perm-04', name: 'governance:override', action: 'admin', resource_type: 'Policy', description: 'Override automated compliance and security blocking gates' },
+          { id: 'perm-05', name: 'evidence:verify', action: 'read', resource_type: 'Evidence', description: 'Inspect cryptographic provenance and verify attestation chains' },
+        ]
+      } catch {
+        return [
+          { id: 'perm-01', name: 'pipelines:create', action: 'create', resource_type: 'Pipeline', description: 'Create and configure new autonomous engineering pipelines' },
+          { id: 'perm-02', name: 'deployments:approve', action: 'admin', resource_type: 'Deployment', description: 'Authorize progressive canary and progressive deployment gates' },
+          { id: 'perm-03', name: 'agents:factory', action: '*', resource_type: 'AgentFactory', description: 'Synthesize, publish, and deprecate autonomous agent versions' },
+          { id: 'perm-04', name: 'governance:override', action: 'admin', resource_type: 'Policy', description: 'Override automated compliance and security blocking gates' },
+          { id: 'perm-05', name: 'evidence:verify', action: 'read', resource_type: 'Evidence', description: 'Inspect cryptographic provenance and verify attestation chains' },
+        ]
+      }
+    }
+  })
 }

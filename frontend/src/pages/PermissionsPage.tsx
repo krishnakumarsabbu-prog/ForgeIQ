@@ -1,161 +1,106 @@
-import { useAgents, useTools, usePolicies } from '../hooks/useQueries'
-import { PageHeader, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
-import { StatusBadge } from '../components/ui/StatusBadge'
-import { Lock, Shield, Wrench, Bot } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { usePermissions, useRoles } from '../hooks/useQueries'
+import { PageHeader, StatusBadge, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
+import { StatCard, EnterpriseCard, SectionHeader } from '../components/ui/EnterpriseHelpers'
+import { Shield, Lock, CheckCircle2, Plus, Users, Key, ChevronRight, Globe } from 'lucide-react'
 
 export default function PermissionsPage() {
-  const { data: agents, isLoading: agentLoading } = useAgents()
-  const { data: tools, isLoading: toolLoading } = useTools()
-  const { data: policies, isLoading: policyLoading } = usePolicies()
-
-  if (agentLoading || toolLoading || policyLoading) return (<><PageHeader title="Permissions" description="Tool permissions, agent access controls, and policy enforcement rules" /><LoadingSpinner /></>)
-
-  const agentList = agents ?? []
-  const toolList = tools ?? []
-  const policyList = (policies ?? []).filter(p => p.policy_type === 'security' || p.policy_type === 'governance')
+  const navigate = useNavigate()
+  const { data: permissions, isLoading } = usePermissions?.() ?? { data: null, isLoading: false }
+  const { data: roles } = useRoles?.() ?? { data: null }
 
   return (
     <>
-      <PageHeader title="Permissions" description="Tool permissions, agent access controls, and policy enforcement rules" />
-      <div className="p-6 space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="fi-card">
-            <div className="px-4 py-3 border-b border-slate-200">
-              <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                <Wrench size={14} className="text-forgeiq-600" /> Tool Permissions
-              </h3>
-            </div>
-            {toolList.length === 0 ? (
-              <EmptyState message="No tools configured" />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="fi-table">
-                  <thead>
-                    <tr>
-                      <th>Tool</th>
-                      <th>Risk</th>
-                      <th>Permissions</th>
-                      <th className="text-right">Operations</th>
-                      <th>Environments</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {toolList.map(t => (
-                      <tr key={t.id} className="hover:bg-slate-50">
-                        <td className="font-medium text-slate-900">{t.display_name || t.name}</td>
-                        <td><StatusBadge status={t.risk_level} /></td>
-                        <td>
-                          <div className="flex flex-wrap gap-1">
-                            {t.permissions.slice(0, 3).map(p => (
-                              <span key={p} className="fi-badge bg-slate-50 text-slate-600 border border-slate-200">{p}</span>
-                            ))}
-                            {t.permissions.length > 3 && <span className="text-xs text-slate-400">+{t.permissions.length - 3}</span>}
-                          </div>
-                        </td>
-                        <td className="text-right text-slate-600">{t.allowed_operations.length}</td>
-                        <td className="text-xs text-slate-500">{t.supported_environments.join(', ')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+      <PageHeader
+        title="Permissions"
+        description="Fine-grained RBAC — manage role definitions, permission scopes, and resource-level access controls."
+        icon={<Shield size={18} />}
+        badge="Access Control"
+        badgeVariant="violet"
+        actions={<button className="fi-btn-primary"><Plus size={13} /> New Permission</button>}
+      />
 
-          <div className="fi-card">
-            <div className="px-4 py-3 border-b border-slate-200">
-              <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                <Bot size={14} className="text-forgeiq-600" /> Agent Permissions
-              </h3>
-            </div>
-            {agentList.length === 0 ? (
-              <EmptyState message="No agents configured" />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="fi-table">
-                  <thead>
-                    <tr>
-                      <th>Agent</th>
-                      <th>Category</th>
-                      <th>Permissions</th>
-                      <th>Security Restrictions</th>
-                      <th className="text-right">Max Turns</th>
-                      <th className="text-right">Timeout</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {agentList.map(a => (
-                      <tr key={a.id} className="hover:bg-slate-50">
-                        <td className="font-medium text-slate-900">{a.display_name || a.name}</td>
-                        <td className="text-slate-600">{a.category}</td>
-                        <td>
-                          <div className="flex flex-wrap gap-1">
-                            {a.permissions.slice(0, 2).map(p => (
-                              <span key={p} className="fi-badge bg-slate-50 text-slate-600 border border-slate-200">{p}</span>
-                            ))}
-                            {a.permissions.length > 2 && <span className="text-xs text-slate-400">+{a.permissions.length - 2}</span>}
-                          </div>
-                        </td>
-                        <td>
-                          {a.security_restrictions.length > 0 ? (
-                            <span className="text-xs text-red-600">{a.security_restrictions.length} restrictions</span>
-                          ) : (
-                            <span className="text-xs text-slate-400">None</span>
-                          )}
-                        </td>
-                        <td className="text-right text-slate-600">{a.max_turns}</td>
-                        <td className="text-right text-slate-600">{a.timeout_seconds}s</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+      <div className="p-6 space-y-5 max-w-[1800px] mx-auto">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="Permissions"  value={permissions?.length ?? 0}  sub="Defined"      icon={Lock}         gradient={['#7c3aed','#4f46e5']} />
+          <StatCard label="Roles"        value={roles?.length ?? 0}         sub="Registered"   icon={Shield}       gradient={['#00adef','#0a68f4']} />
+          <StatCard label="Resources"    value={new Set(permissions?.map((p:any)=>p.resource_type).filter(Boolean)).size} sub="Types" icon={Globe} gradient={['#10b981','#0891b2']} />
+          <StatCard label="Admin Grants" value={permissions?.filter((p:any)=>p.action==='*'||p.action==='admin').length ?? 0} sub="Full access" icon={Key} gradient={['#f59e0b','#f97316']} />
         </div>
 
-        <div className="fi-card">
-          <div className="px-4 py-3 border-b border-slate-200">
-            <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <Shield size={14} className="text-forgeiq-600" /> Governance Policies
-            </h3>
-          </div>
-          {policyList.length === 0 ? (
-            <EmptyState message="No governance policies defined" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="fi-table">
-                <thead>
-                  <tr>
-                    <th>Policy</th>
-                    <th>Type</th>
-                    <th>Scope</th>
-                    <th>Enforcement</th>
-                    <th className="text-right">Priority</th>
-                    <th>Active</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {policyList.map(p => (
-                    <tr key={p.id} className="hover:bg-slate-50">
-                      <td>
-                        <div className="font-medium text-slate-900 flex items-center gap-2">
-                          <Lock size={12} className="text-slate-400" />
-                          {p.display_name || p.name}
-                        </div>
-                        {p.description && <div className="text-xs text-slate-500 truncate max-w-xs">{p.description}</div>}
-                      </td>
-                      <td><span className="fi-badge bg-red-50 text-red-700 border border-red-200">{p.policy_type}</span></td>
-                      <td className="text-slate-600">{p.scope}</td>
-                      <td><StatusBadge status={p.enforcement === 'hard' ? 'CRITICAL' : p.enforcement === 'soft' ? 'MEDIUM' : 'LOW'} showIcon={false} /></td>
-                      <td className="text-right font-mono text-slate-700">{p.priority}</td>
-                      <td>{p.active ? <StatusBadge status="active" /> : <StatusBadge status="draft" />}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {/* Roles */}
+          <EnterpriseCard>
+            <SectionHeader icon={Shield} title="Role Definitions" subtitle={`${roles?.length ?? 0} roles`} iconColor="#7c3aed" action={
+              <button className="fi-btn-primary fi-btn-sm"><Plus size={11} /> New Role</button>
+            } />
+            {isLoading ? <LoadingSpinner /> : !roles?.length ? (
+              <EmptyState message="No roles defined" description="Create roles to organize permissions into logical groups." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="fi-table">
+                  <thead><tr><th>Role Name</th><th>Permissions</th><th>Scope</th><th>Members</th></tr></thead>
+                  <tbody>
+                    {roles.map((r: any) => (
+                      <tr key={r.id} className="cursor-pointer group">
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.2)' }}>
+                              <Shield size={11} style={{ color: '#7c3aed' }} />
+                            </div>
+                            <span className="font-semibold text-slate-900 text-xs">{r.name}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="font-bold text-xs px-2 py-0.5 rounded-lg" style={{ background: 'rgba(124,58,237,0.08)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.15)' }}>
+                            {r.permission_count ?? r.permissions?.length ?? 0}
+                          </span>
+                        </td>
+                        <td className="text-xs text-slate-500 capitalize">{r.scope || 'global'}</td>
+                        <td className="text-xs font-semibold text-slate-700">{r.member_count ?? 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </EnterpriseCard>
+
+          {/* Permissions */}
+          <EnterpriseCard>
+            <SectionHeader icon={Lock} title="Permission Registry" subtitle={`${permissions?.length ?? 0} permissions`} iconColor="#0284c7" action={
+              <button className="fi-btn-primary fi-btn-sm"><Plus size={11} /> Add Permission</button>
+            } />
+            {isLoading ? <LoadingSpinner /> : !permissions?.length ? (
+              <EmptyState message="No permissions defined" description="Define granular permissions to assign to roles." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="fi-table">
+                  <thead><tr><th>Resource</th><th>Action</th><th>Scope</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {permissions.map((p: any) => (
+                      <tr key={p.id} className="group">
+                        <td>
+                          <span className="font-mono text-[11px] font-semibold px-2 py-0.5 rounded-lg" style={{ background: 'rgba(14,165,233,0.08)', color: '#0284c7', border: '1px solid rgba(14,165,233,0.15)' }}>
+                            {p.resource_type}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={
+                            p.action === '*' || p.action === 'admin'
+                              ? { background: 'rgba(244,63,94,0.1)', color: '#e11d48', border: '1px solid rgba(244,63,94,0.2)' }
+                              : { background: 'rgba(100,116,139,0.1)', color: '#475569', border: '1px solid rgba(100,116,139,0.2)' }
+                          }>{p.action}</span>
+                        </td>
+                        <td className="text-xs text-slate-500 capitalize">{p.scope || 'global'}</td>
+                        <td><StatusBadge status={p.active ? 'ACTIVE' : 'INACTIVE'} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </EnterpriseCard>
         </div>
       </div>
     </>

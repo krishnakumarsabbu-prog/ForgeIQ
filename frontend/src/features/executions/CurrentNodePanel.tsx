@@ -4,7 +4,7 @@ import {
   Coins, Clock, ShieldCheck, ScrollText, Hash,
 } from 'lucide-react'
 import type { ExecutionEvent, Evidence } from '../../types'
-import type { TreeNode } from './executionTree'
+import type { TreeNode } from './executionTreeUtils'
 
 interface CurrentNodePanelProps {
   node: TreeNode | null

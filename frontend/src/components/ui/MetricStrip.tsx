@@ -10,29 +10,40 @@ interface Metric {
 }
 
 const trendColors = {
-  up: 'text-emerald-600',
-  down: 'text-red-600',
-  flat: 'text-slate-500',
+  up: 'text-emerald-600 bg-emerald-50 border border-emerald-200/60',
+  down: 'text-rose-600 bg-rose-50 border border-rose-200/60',
+  flat: 'text-slate-500 bg-slate-50 border border-slate-200/60',
 }
 
 export function MetricStrip({ metrics }: { metrics: Metric[] }) {
   return (
-    <div className="grid gap-px bg-slate-200 border border-slate-200 rounded-lg overflow-hidden" style={{ gridTemplateColumns: `repeat(${metrics.length}, 1fr)` }}>
+    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
       {metrics.map((m, i) => (
-        <div key={i} className="bg-white px-4 py-3">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">{m.label}</span>
-            {m.icon && <span className="text-forgeiq-600">{m.icon}</span>}
+        <div key={i} className="fi-card p-3.5 flex flex-col justify-between hover:border-sky-300 hover:shadow-harness-lg transition-all duration-200 group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{m.label}</span>
+            {m.icon && (
+              <span className="w-6 h-6 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center group-hover:bg-sky-500 group-hover:text-white transition-colors duration-200">
+                {m.icon}
+              </span>
+            )}
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-xl font-semibold text-slate-900">{m.value}</span>
-            {m.sub && <span className="text-xs text-slate-400">{m.sub}</span>}
+          <div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-xl font-bold text-slate-900 tracking-tight">{m.value}</span>
+              {m.sub && <span className="text-[10px] text-slate-400">{m.sub}</span>}
+            </div>
+            {m.trend && m.trendValue && (
+              <div className="mt-1.5 flex items-center">
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${trendColors[m.trend]}`}>
+                  {m.trendValue}
+                </span>
+              </div>
+            )}
           </div>
-          {m.trend && m.trendValue && (
-            <div className={`text-xs font-medium mt-0.5 ${trendColors[m.trend]}`}>{m.trendValue}</div>
-          )}
         </div>
       ))}
     </div>
   )
 }
+

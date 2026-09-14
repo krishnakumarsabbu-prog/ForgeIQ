@@ -1,95 +1,105 @@
-import { Settings, ShieldCheck, Cpu, Bell } from 'lucide-react'
-import { PageHeader } from '../components/ui/PageHeader'
+import { PageHeader, LoadingSpinner } from '../components/ui/PageHeader'
+import { EnterpriseCard, SectionHeader } from '../components/ui/EnterpriseHelpers'
+import { useNavigate } from 'react-router-dom'
+import { Settings, Key, Globe, Bell, Shield, Palette, Database, ChevronRight, CheckCircle2 } from 'lucide-react'
 
-interface ConfigItem {
-  label: string
-  value: string
-}
-
-interface ConfigSection {
-  icon: typeof Settings
-  title: string
-  description: string
-  items: ConfigItem[]
-}
-
-const sections: ConfigSection[] = [
+const settingsSections = [
   {
-    icon: Settings,
-    title: 'General',
-    description: 'Platform-wide configuration',
-    items: [
-      { label: 'Platform Name', value: 'ForgeIQ' },
-      { label: 'Default Tenant', value: 'tenant_forgeiq' },
-      { label: 'API Version', value: 'v1' },
-      { label: 'Environment', value: 'production' },
-    ],
+    icon: Globe,
+    title: 'General Settings',
+    subtitle: 'Platform name, timezone, and locale',
+    color: '#0284c7',
+    items: ['Platform Name', 'Default Timezone', 'Date Format', 'Language'],
   },
   {
-    icon: ShieldCheck,
-    title: 'Security',
-    description: 'Authentication, authorization, and audit',
-    items: [
-      { label: 'Auth Provider', value: 'Supabase Auth' },
-      { label: 'RLS Enabled', value: 'true' },
-      { label: 'Evidence Hashing', value: 'SHA-256' },
-      { label: 'Session Timeout', value: '3600s' },
-    ],
+    icon: Key,
+    title: 'API & Integrations',
+    subtitle: 'API keys, webhooks, and external connectors',
+    color: '#7c3aed',
+    items: ['API Keys', 'Webhook Endpoints', 'Git Providers', 'Cloud Providers'],
   },
   {
-    icon: Cpu,
-    title: 'Models',
-    description: 'LLM model configurations',
-    items: [
-      { label: 'Default Provider', value: 'OpenAI' },
-      { label: 'Default Model', value: 'gpt-4o' },
-      { label: 'Fallback Model', value: 'gpt-4o-mini' },
-      { label: 'Max Context', value: '128000 tokens' },
-    ],
+    icon: Shield,
+    title: 'Security & SSO',
+    subtitle: 'Authentication, SSO, and MFA configuration',
+    color: '#e11d48',
+    items: ['SSO Configuration', 'MFA Settings', 'IP Allowlisting', 'Session Timeout'],
   },
   {
     icon: Bell,
     title: 'Notifications',
-    description: 'Alerts and notification channels',
-    items: [
-      { label: 'Execution Failures', value: 'enabled' },
-      { label: 'Approval Requests', value: 'enabled' },
-      { label: 'Security Alerts', value: 'enabled' },
-      { label: 'Channel', value: 'in-app + email' },
-    ],
+    subtitle: 'Alert channels, escalation policies',
+    color: '#f59e0b',
+    items: ['Email Alerts', 'Slack Integration', 'PagerDuty', 'Escalation Policies'],
+  },
+  {
+    icon: Database,
+    title: 'Data & Retention',
+    subtitle: 'Log retention, data export, and archival',
+    color: '#059669',
+    items: ['Log Retention (days)', 'Audit Log Export', 'Backup Schedule', 'Data Residency'],
+  },
+  {
+    icon: Palette,
+    title: 'Appearance',
+    subtitle: 'Theme, branding, and white-label settings',
+    color: '#4338ca',
+    items: ['Theme Mode', 'Custom Logo', 'Brand Colors', 'Portal Domain'],
   },
 ]
 
 export default function SettingsPage() {
+  const navigate = useNavigate()
+
   return (
-    <div className="fi-card">
-      <PageHeader title="Settings" description="Platform configuration and system preferences" />
-      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        {sections.map((s) => {
-          const Icon = s.icon
-          return (
-            <div key={s.title} className="fi-card p-4 space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="h-9 w-9 rounded-lg bg-forgeiq-50 border border-forgeiq-200 flex items-center justify-center shrink-0">
-                  <Icon className="h-5 w-5 text-forgeiq-600" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">{s.title}</h3>
-                  <p className="text-xs text-slate-500">{s.description}</p>
-                </div>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {s.items.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between py-2">
-                    <span className="text-sm text-slate-600">{item.label}</span>
-                    <span className="text-sm font-medium text-slate-800 font-mono">{item.value}</span>
+    <>
+      <PageHeader
+        title="Platform Settings"
+        description="Configure global platform settings, integrations, security policies, and enterprise customizations."
+        icon={<Settings size={18} />}
+        badge="Administration"
+        badgeVariant="violet"
+      />
+
+      <div className="p-6 max-w-[1800px] mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {settingsSections.map(section => (
+            <EnterpriseCard key={section.title} hoverable onClick={() => {}}>
+              <div className="p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: `${section.color}15`, border: `1px solid ${section.color}30` }}
+                  >
+                    <section.icon size={18} style={{ color: section.color }} />
                   </div>
-                ))}
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">{section.title}</h3>
+                    <p className="text-[11px] text-slate-400">{section.subtitle}</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {section.items.map(item => (
+                    <div
+                      key={item}
+                      className="flex items-center justify-between py-2 px-3 rounded-xl transition-all cursor-pointer"
+                      style={{ border: '1px solid transparent' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(248,250,252,0.8)'; e.currentTarget.style.borderColor = 'rgba(226,232,240,0.7)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}
+                    >
+                      <span className="text-xs font-medium text-slate-700">{item}</span>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 size={11} className="text-emerald-400" />
+                        <ChevronRight size={12} className="text-slate-300" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )
-        })}
+            </EnterpriseCard>
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   )
 }

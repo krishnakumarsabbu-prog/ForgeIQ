@@ -1,97 +1,89 @@
-import { Package, Tag } from 'lucide-react'
-import { useArtifacts } from '../hooks/useQueries'
 import { PageHeader, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
+import { StatCard, EnterpriseCard, SectionHeader } from '../components/ui/EnterpriseHelpers'
+import { useNavigate } from 'react-router-dom'
+import { Hammer, Package, CheckCircle2, XCircle, Clock, Activity, Play, ChevronRight } from 'lucide-react'
+import { useBuildRuns } from '../hooks/useQueries'
 
-const typeColors: Record<string, string> = {
-  container: 'bg-blue-50 text-blue-700 border border-blue-200',
-  binary: 'bg-slate-100 text-slate-700 border border-slate-300',
-  library: 'bg-forgeiq-50 text-forgeiq-700 border border-forgeiq-200',
-  bundle: 'bg-amber-50 text-amber-700 border border-amber-200',
-  wheel: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-}
-
-function formatSize(bytes: number): string {
-  if (!bytes) return '—'
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  const gb = bytes / (1024 * 1024 * 1024)
-  return `${gb.toFixed(2)} GB`
+function formatTime(ts?: string): string {
+  if (!ts) return '—'
+  return new Date(ts).toLocaleString(undefined, { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
 export default function BuildAutomationPage() {
-  const { data: artifacts, isLoading } = useArtifacts()
+  const navigate = useNavigate()
+  const { data: builds, isLoading } = useBuildRuns?.() ?? { data: null, isLoading: false }
 
-  if (isLoading) {
-    return (
-      <div className="fi-card">
-        <PageHeader title="Build Automation" description="Build artifacts and registry inventory" />
-        <LoadingSpinner />
-      </div>
-    )
-  }
-
-  const items = artifacts ?? []
+  const running   = builds?.filter((b: any) => b.status === 'RUNNING').length ?? 0
+  const success   = builds?.filter((b: any) => b.status === 'SUCCESS' || b.status === 'COMPLETED').length ?? 0
+  const failed    = builds?.filter((b: any) => b.status === 'FAILED').length ?? 0
 
   return (
-    <div className="fi-card">
+    <>
       <PageHeader
         title="Build Automation"
-        description="Build artifacts and registry inventory"
-        actions={<span className="text-xs text-slate-500">{items.length} artifacts</span>}
+        description="Autonomous build orchestration — compile, package, scan, and publish artifacts with AI verification."
+        icon={<Hammer size={18} />}
+        badge="CI/CD"
+        badgeVariant="emerald"
+        actions={<button className="fi-btn-primary"><Play size={13} /> Trigger Build</button>}
       />
-      {items.length === 0 ? (
-        <EmptyState message="No build artifacts found" />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="fi-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Version</th>
-                <th>Type</th>
-                <th>Registry</th>
-                <th>Size</th>
-                <th>Tags</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((a) => (
-                <tr key={a.id} className="hover:bg-slate-50">
-                  <td>
-                    <div className="flex items-center gap-2">
-                      <Package className="h-4 w-4 text-slate-400" />
-                      <span className="font-medium text-slate-800">{a.name}</span>
-                    </div>
-                  </td>
-                  <td className="font-mono text-slate-700">{a.version}</td>
-                  <td>
-                    <span className={`fi-badge ${typeColors[a.type] || 'bg-slate-50 text-slate-600 border border-slate-200'}`}>
-                      {a.type}
-                    </span>
-                  </td>
-                  <td className="text-slate-600">{a.registry}</td>
-                  <td className="text-slate-600 whitespace-nowrap">{formatSize(a.size_bytes)}</td>
-                  <td>
-                    {a.tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {a.tags.map((tag, i) => (
-                          <span key={i} className="fi-badge bg-slate-50 text-slate-600 border border-slate-200">
-                            <Tag className="h-2.5 w-2.5" />
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-slate-400 text-xs">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+      <div className="p-6 space-y-5 max-w-[1800px] mx-auto">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="Running"    value={running}                sub="In progress"   icon={Activity}     gradient={['#00adef','#0a68f4']} />
+          <StatCard label="Successful" value={success}                sub="Green builds"  icon={CheckCircle2}  gradient={['#10b981','#0891b2']} />
+          <StatCard label="Failed"     value={failed}                 sub="Broken"        icon={XCircle}      gradient={['#f43f5e','#e11d48']} />
+          <StatCard label="Artifacts"  value={builds?.length ?? 0}   sub="Published"     icon={Package}      gradient={['#7c3aed','#4f46e5']} />
         </div>
-      )}
-    </div>
+
+        <EnterpriseCard>
+          <SectionHeader icon={Hammer} title="Build Run History" subtitle="All CI/CD build runs" iconColor="#10b981" />
+          {isLoading ? (
+            <LoadingSpinner message="Loading build history..." />
+          ) : !builds?.length ? (
+            <EmptyState
+              message="No build runs found"
+              description="Trigger a build to see automated compile, test, and package results here."
+              icon={<Hammer size={24} className="text-slate-300" />}
+              action={<button className="fi-btn-primary"><Play size={13} /> Trigger First Build</button>}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="fi-table">
+                <thead>
+                  <tr>
+                    <th>Build ID</th><th>Application</th><th>Branch</th>
+                    <th>Status</th><th>Duration</th><th>Started</th><th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {builds.map((b: any) => (
+                    <tr key={b.id} className="cursor-pointer group" onClick={() => navigate(`/builds/${b.id}`)}>
+                      <td><span className="font-mono text-xs font-bold" style={{ color: '#0284c7' }}>{b.id?.slice(0, 12)}…</span></td>
+                      <td className="font-semibold text-slate-900 text-xs">{b.application}</td>
+                      <td><span className="font-mono text-[11px] text-slate-500">{b.branch}</span></td>
+                      <td>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold"
+                          style={b.status === 'SUCCESS' || b.status === 'COMPLETED'
+                            ? { background: 'rgba(16,185,129,0.1)', color: '#059669', border: '1px solid rgba(16,185,129,0.2)' }
+                            : b.status === 'FAILED'
+                            ? { background: 'rgba(244,63,94,0.1)', color: '#e11d48', border: '1px solid rgba(244,63,94,0.2)' }
+                            : { background: 'rgba(14,165,233,0.1)', color: '#0284c7', border: '1px solid rgba(14,165,233,0.2)' }
+                          }>
+                          {b.status}
+                        </span>
+                      </td>
+                      <td className="font-mono text-xs text-slate-600">{b.duration_seconds ? `${b.duration_seconds}s` : '—'}</td>
+                      <td className="text-xs text-slate-400">{formatTime(b.started_at)}</td>
+                      <td><ChevronRight size={14} className="text-slate-200 group-hover:text-sky-500 transition-colors" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </EnterpriseCard>
+      </div>
+    </>
   )
 }

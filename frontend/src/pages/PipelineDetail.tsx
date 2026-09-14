@@ -1,26 +1,34 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, GitBranch, ArrowRight, Layers, Settings } from 'lucide-react'
+import { ArrowLeft, GitBranch, ArrowRight, Layers, Settings, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { usePipeline, useHarnesses } from '../hooks/useQueries'
 import { PageHeader, StatusBadge, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
+import { EnterpriseCard, SectionHeader } from '../components/ui/EnterpriseHelpers'
 import type { PipelineStage } from '../types'
 
-const STAGE_TYPE_COLORS: Record<string, string> = {
-  build: 'bg-forgeiq-50 text-forgeiq-700 border border-forgeiq-200',
-  test: 'bg-blue-50 text-blue-700 border border-blue-200',
-  deploy: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  approval: 'bg-amber-50 text-amber-700 border border-amber-200',
-  verification: 'bg-orange-50 text-orange-700 border border-orange-200',
-  rollback: 'bg-red-50 text-red-700 border border-red-200',
-  development: 'bg-forgeiq-50 text-forgeiq-700 border border-forgeiq-200',
-  testing: 'bg-blue-50 text-blue-700 border border-blue-200',
-  security: 'bg-red-50 text-red-700 border border-red-200',
-  release: 'bg-purple-50 text-purple-700 border border-purple-200',
-  deployment: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  harness: 'bg-forgeiq-50 text-forgeiq-700 border border-forgeiq-200',
-  condition: 'bg-slate-50 text-slate-600 border border-slate-200',
-  parallel: 'bg-cyan-50 text-cyan-700 border border-cyan-200',
-  environment: 'bg-teal-50 text-teal-700 border border-teal-200',
-  artifact: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+const stageTypeStyle: Record<string, { bg: string; color: string; border: string }> = {
+  build:       { bg: 'rgba(14,165,233,0.1)',  color: '#0284c7', border: 'rgba(14,165,233,0.25)' },
+  test:        { bg: 'rgba(16,185,129,0.1)',  color: '#059669', border: 'rgba(16,185,129,0.25)' },
+  testing:     { bg: 'rgba(16,185,129,0.1)',  color: '#059669', border: 'rgba(16,185,129,0.25)' },
+  deploy:      { bg: 'rgba(124,58,237,0.1)',  color: '#7c3aed', border: 'rgba(124,58,237,0.25)' },
+  deployment:  { bg: 'rgba(124,58,237,0.1)',  color: '#7c3aed', border: 'rgba(124,58,237,0.25)' },
+  approval:    { bg: 'rgba(245,158,11,0.1)',  color: '#b45309', border: 'rgba(245,158,11,0.25)' },
+  verification:{ bg: 'rgba(245,158,11,0.1)',  color: '#b45309', border: 'rgba(245,158,11,0.25)' },
+  rollback:    { bg: 'rgba(244,63,94,0.1)',   color: '#e11d48', border: 'rgba(244,63,94,0.25)' },
+  security:    { bg: 'rgba(244,63,94,0.1)',   color: '#e11d48', border: 'rgba(244,63,94,0.25)' },
+  release:     { bg: 'rgba(99,102,241,0.1)',  color: '#4338ca', border: 'rgba(99,102,241,0.25)' },
+  parallel:    { bg: 'rgba(6,182,212,0.1)',   color: '#0891b2', border: 'rgba(6,182,212,0.25)' },
+  harness:     { bg: 'rgba(14,165,233,0.1)',  color: '#0284c7', border: 'rgba(14,165,233,0.25)' },
+  development: { bg: 'rgba(14,165,233,0.1)',  color: '#0284c7', border: 'rgba(14,165,233,0.25)' },
+}
+const DEFAULT_STAGE = { bg: 'rgba(100,116,139,0.1)', color: '#475569', border: 'rgba(100,116,139,0.2)' }
+
+function InfoField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">{label}</div>
+      <div className="text-xs font-semibold text-slate-800">{value}</div>
+    </div>
+  )
 }
 
 export default function PipelineDetail() {
@@ -29,184 +37,162 @@ export default function PipelineDetail() {
   const { data: pipeline, isLoading } = usePipeline(id || '')
   const { data: harnesses } = useHarnesses()
 
-  if (isLoading) {
-    return (
-      <div>
-        <PageHeader title="Pipeline Detail" />
-        <LoadingSpinner />
-      </div>
-    )
-  }
+  if (isLoading) return (
+    <>
+      <PageHeader title="Pipeline Detail" description="Loading pipeline configuration..." icon={<GitBranch size={18} />} />
+      <LoadingSpinner message="Loading pipeline..." />
+    </>
+  )
 
-  if (!pipeline) {
-    return (
-      <div>
-        <PageHeader title="Pipeline Detail" />
-        <div className="fi-card">
-          <EmptyState message="Pipeline not found" />
-        </div>
-      </div>
-    )
-  }
+  if (!pipeline) return (
+    <>
+      <PageHeader title="Pipeline Detail" icon={<GitBranch size={18} />} />
+      <div className="p-6"><EnterpriseCard><EmptyState message="Pipeline not found" /></EnterpriseCard></div>
+    </>
+  )
 
   const sortedStages = [...pipeline.stages].sort((a, b) => a.order - b.order)
   const harnessName = (harnessId?: string) => {
     if (!harnessId) return '—'
-    const h = (harnesses || []).find((x) => x.id === harnessId)
-    return h ? h.display_name || h.name : harnessId
+    const h = (harnesses || []).find(x => x.id === harnessId)
+    return h ? h.display_name || h.name : harnessId.slice(0, 14) + '…'
   }
 
   return (
-    <div>
+    <>
       <PageHeader
         title={pipeline.display_name || pipeline.name}
-        description={pipeline.description}
+        description={pipeline.description || 'Autonomous delivery pipeline'}
+        icon={<GitBranch size={18} />}
+        badge={pipeline.published ? 'Published' : 'Draft'}
+        badgeVariant={pipeline.published ? 'emerald' : 'amber'}
         actions={
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => navigate(`/pipeline-builder?pipeline=${id}`)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-forgeiq-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-forgeiq-700 transition-colors"
-            >
-              <Settings className="h-4 w-4" />
-              Edit in Builder
+            <button onClick={() => navigate('/pipelines')} className="fi-btn-secondary">
+              <ArrowLeft size={13} /> Back
             </button>
-            <Link
-              to="/pipelines"
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Link>
+            <button onClick={() => navigate(`/pipeline-builder?pipeline=${id}`)} className="fi-btn-primary">
+              <Settings size={13} /> Edit in Builder
+            </button>
           </div>
         }
       />
 
-      <div className="p-6 space-y-6">
-        {/* Pipeline Info */}
-        <div className="fi-card p-5">
-          <h2 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
-            <GitBranch className="h-4 w-4 text-forgeiq-600" />
-            Configuration
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <InfoField label="Name" value={pipeline.name} />
-            <InfoField label="Application" value={pipeline.application_id || '—'} />
-            <InfoField label="Current Version" value={pipeline.current_version} />
-            <InfoField
-              label="Published"
-              value={pipeline.published ? 'Yes' : 'No'}
-            />
+      <div className="p-6 space-y-5 max-w-[1800px] mx-auto">
+        {/* Config Overview */}
+        <EnterpriseCard>
+          <SectionHeader icon={GitBranch} title="Pipeline Configuration" subtitle="Core settings and metadata" iconColor="#6366f1" />
+          <div className="p-5 grid grid-cols-2 md:grid-cols-4 gap-5">
+            <InfoField label="Internal Name"    value={pipeline.name} />
+            <InfoField label="Application"      value={pipeline.application_id || '—'} />
+            <InfoField label="Current Version"  value={pipeline.current_version} />
+            <InfoField label="Active"           value={pipeline.active ? 'Yes' : 'No'} />
+            <InfoField label="Total Stages"     value={String(sortedStages.length)} />
+            <InfoField label="Published"        value={pipeline.published ? 'Yes' : 'No'} />
           </div>
-        </div>
+        </EnterpriseCard>
 
-        {/* Stage Flow Diagram */}
-        <div className="fi-card p-5">
-          <h3 className="text-sm font-semibold text-slate-900 mb-4">Stage Flow</h3>
-          {sortedStages.length === 0 ? (
-            <EmptyState message="No stages in this pipeline" />
-          ) : (
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
-              {sortedStages.map((stage: PipelineStage, idx: number) => (
-                <div key={stage.id} className="flex items-center gap-2 flex-shrink-0">
-                  <div className="flex flex-col items-center gap-1.5 min-w-[140px]">
-                    <div className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-center">
-                      <div className="text-sm font-medium text-slate-900">{stage.name}</div>
-                      <div className="mt-1">
+        {/* Stage Flow Visual */}
+        <EnterpriseCard>
+          <SectionHeader icon={ArrowRight} title="Stage Flow" subtitle="Visual pipeline progression" iconColor="#6366f1" />
+          <div className="p-5">
+            {sortedStages.length === 0 ? (
+              <EmptyState message="No stages in this pipeline" description="Edit in Pipeline Builder to add stages." />
+            ) : (
+              <div className="flex items-center gap-2 overflow-x-auto pb-3">
+                {sortedStages.map((stage: PipelineStage, idx: number) => {
+                  const ss = stageTypeStyle[stage.stage_type] ?? DEFAULT_STAGE
+                  return (
+                    <div key={stage.id} className="flex items-center gap-2 shrink-0">
+                      <div
+                        className="rounded-2xl p-3.5 text-center min-w-[130px] transition-all duration-200 cursor-default"
+                        style={{
+                          background: ss.bg,
+                          border: `1px solid ${ss.border}`,
+                        }}
+                      >
+                        <div className="text-xs font-black text-slate-900 mb-1.5">{stage.name}</div>
                         <span
-                          className={`fi-badge text-xs ${
-                            STAGE_TYPE_COLORS[stage.stage_type] ||
-                            'bg-slate-50 text-slate-600 border border-slate-200'
-                          }`}
+                          className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold"
+                          style={{ background: ss.bg, color: ss.color, border: `1px solid ${ss.border}` }}
                         >
                           {stage.stage_type}
                         </span>
+                        <div className="flex items-center justify-center gap-1 mt-2 text-[10px] text-slate-400">
+                          <Layers size={10} />
+                          <span className="truncate max-w-[100px]">{harnessName(stage.harness_id)}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-300 mt-1">Order {stage.order}</div>
                       </div>
-                      <div className="mt-1.5 flex items-center justify-center gap-1 text-xs text-slate-400">
-                        <Layers className="h-3 w-3" />
-                        {harnessName(stage.harness_id)}
-                      </div>
+                      {idx < sortedStages.length - 1 && (
+                        <ArrowRight size={16} style={{ color: '#cbd5e1' }} className="shrink-0" />
+                      )}
                     </div>
-                    <span className="text-xs text-slate-400">Stage {stage.order}</span>
-                  </div>
-                  {idx < sortedStages.length - 1 && (
-                    <ArrowRight className="h-5 w-5 text-slate-300 flex-shrink-0" />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </EnterpriseCard>
 
         {/* Stage Details Table */}
-        <div className="fi-card">
-          <div className="px-5 py-3 border-b border-slate-200">
-            <h3 className="text-sm font-semibold text-slate-900">Stage Details</h3>
-          </div>
+        <EnterpriseCard>
+          <SectionHeader icon={Layers} title="Stage Details" subtitle="Configuration per stage" iconColor="#6366f1" />
           {sortedStages.length === 0 ? (
             <EmptyState message="No stages configured" />
           ) : (
-            <table className="fi-table">
-              <thead>
-                <tr>
-                  <th className="text-left">Order</th>
-                  <th className="text-left">Stage Name</th>
-                  <th className="text-left">Type</th>
-                  <th className="text-left">Harness</th>
-                  <th className="text-left">Environment</th>
-                  <th className="text-left">Failure Strategy</th>
-                  <th className="text-center">Required</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedStages.map((stage: PipelineStage) => (
-                  <tr key={stage.id}>
-                    <td className="text-slate-500 font-mono text-sm">{stage.order}</td>
-                    <td className="font-medium text-slate-900">{stage.name}</td>
-                    <td>
-                      <span
-                        className={`fi-badge text-xs ${
-                          STAGE_TYPE_COLORS[stage.stage_type] ||
-                          'bg-slate-50 text-slate-600 border border-slate-200'
-                        }`}
-                      >
-                        {stage.stage_type}
-                      </span>
-                    </td>
-                    <td className="text-slate-600">
-                      <div className="flex items-center gap-1.5">
-                        <Layers className="h-3.5 w-3.5 text-slate-400" />
-                        {harnessName(stage.harness_id)}
-                      </div>
-                    </td>
-                    <td className="text-slate-600 text-xs">
-                      {stage.config?.environment || '—'}
-                    </td>
-                    <td className="text-slate-600 text-xs">
-                      {stage.config?.failure_strategy || 'abort'}
-                    </td>
-                    <td className="text-center">
-                      {stage.required ? (
-                        <span className="text-amber-600 font-medium text-xs">Required</span>
-                      ) : (
-                        <span className="text-slate-400 text-xs">Optional</span>
-                      )}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="fi-table">
+                <thead>
+                  <tr>
+                    <th>Order</th><th>Stage Name</th><th>Type</th><th>Harness</th>
+                    <th>Environment</th><th>Failure Strategy</th><th className="text-center">Required</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {sortedStages.map((stage: PipelineStage) => {
+                    const ss = stageTypeStyle[stage.stage_type] ?? DEFAULT_STAGE
+                    return (
+                      <tr key={stage.id}>
+                        <td>
+                          <span className="font-mono text-xs font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                            #{stage.order}
+                          </span>
+                        </td>
+                        <td className="font-semibold text-slate-900 text-xs">{stage.name}</td>
+                        <td>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold" style={{ background: ss.bg, color: ss.color, border: `1px solid ${ss.border}` }}>
+                            {stage.stage_type}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                            <Layers size={11} className="text-slate-400" />
+                            {harnessName(stage.harness_id)}
+                          </div>
+                        </td>
+                        <td className="text-xs text-slate-600">{stage.config?.environment || '—'}</td>
+                        <td>
+                          <span className="text-xs font-mono text-slate-600 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
+                            {stage.config?.failure_strategy || 'abort'}
+                          </span>
+                        </td>
+                        <td className="text-center">
+                          {stage.required ? (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold" style={{ background: 'rgba(245,158,11,0.1)', color: '#b45309', border: '1px solid rgba(245,158,11,0.2)' }}>Required</span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">Optional</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
-        </div>
+        </EnterpriseCard>
       </div>
-    </div>
-  )
-}
-
-function InfoField({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-0.5">{label}</div>
-      <div className="text-sm text-slate-900">{value}</div>
-    </div>
+    </>
   )
 }

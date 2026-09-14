@@ -33,6 +33,11 @@ from ..domain.models.deployment import (
     RollbackResult,
 )
 from ..domain.models.semantic import SemanticEntity, SemanticEntityType
+from ..domain.models.delivery_state import (
+    DeliveryProduct, Epic, Story, DeliveryTeam, Sprint, SprintGoal, AcceptanceCriterion,
+    DeliveryDependency, DeliveryRisk, DeliveryRecommendation, DeliveryAction, DeliveryForecast,
+    DeliveryState, StoryStatus, SprintStatus, DependencyType, RiskCategory, ActionStatus, AutomationLevel,
+)
 
 
 TENANT_ID = "tenant_forgeiq"
@@ -67,6 +72,7 @@ def seed_all() -> None:
     _seed_deployments()
     _seed_semantic_entities()
     _seed_incidents()
+    _seed_delivery_intelligence()
 
 
 def _seed_tenant_and_users() -> None:
@@ -2060,3 +2066,539 @@ def _seed_incidents() -> None:
         IncidentTimelineEntry(event="resolved", message="Resolved - page load back to 1.2s", actor="system", timestamp=_ts(120)),
     ]
     store.incidents.add(inc3)
+
+
+def _seed_delivery_intelligence() -> None:
+    # 1. Product
+    prod = DeliveryProduct(
+        tenant_id=TENANT_ID,
+        id="prod_banking",
+        name="Enterprise Core Banking Platform",
+        key="BANK",
+        description="Next-generation omni-channel core banking platform with real-time settlement and AI fraud detection.",
+        lead_scrum_master="Sarah Chen",
+        product_owner="Alex Vance",
+        team_ids=["team_payments", "team_mobile", "team_fraud", "team_settlement"],
+    )
+    store.delivery_products.add(prod)
+
+    # 2. Epics
+    epic_pay = Epic(
+        tenant_id=TENANT_ID,
+        id="epic_pay",
+        product_id="prod_banking",
+        key="EPIC-PAY",
+        title="Payment Rails Modernization & Instant Settlement",
+        description="Zero-downtime ISO 20022 and SEPA Instant settlement integration with retry resilience.",
+        target_date=(utc_now() + timedelta(days=35)).strftime("%Y-%m-%d"),
+        total_points=80.0,
+        completed_points=48.0,
+        status="IN_PROGRESS",
+        progress_pct=60.0,
+    )
+    epic_auth = Epic(
+        tenant_id=TENANT_ID,
+        id="epic_auth",
+        product_id="prod_banking",
+        key="EPIC-AUTH",
+        title="Customer Identity & Biometric Security",
+        description="FIDO2 passwordless auth and device biometric binding.",
+        target_date=(utc_now() + timedelta(days=45)).strftime("%Y-%m-%d"),
+        total_points=60.0,
+        completed_points=32.0,
+        status="IN_PROGRESS",
+        progress_pct=53.3,
+    )
+    store.epics.add(epic_pay)
+    store.epics.add(epic_auth)
+
+    # 3. Teams
+    team_pay = DeliveryTeam(
+        tenant_id=TENANT_ID,
+        id="team_payments",
+        name="Payments Core",
+        key="PAY",
+        description="Core payment processing, ledger transactions, and external banking gateway integrations.",
+        lead_name="Marcus Rivera",
+        scrum_master="Sarah Chen",
+        members_count=6,
+        capacity_hours_per_sprint=480.0,
+        usable_capacity_hours=420.0,
+        skills=["payments", "kafka", "java", "postgresql", "retry-patterns"],
+        capability_matrix={"payments": 0.98, "kafka": 0.90, "java": 0.95, "security": 0.85},
+        average_velocity=38.0,
+        current_wip=5,
+        active_sprint_id="sprint_42",
+    )
+    team_mob = DeliveryTeam(
+        tenant_id=TENANT_ID,
+        id="team_mobile",
+        name="Mobile Banking App",
+        key="MOB",
+        description="iOS and Android customer banking experience.",
+        lead_name="Priya Nair",
+        scrum_master="Sarah Chen",
+        members_count=6,
+        capacity_hours_per_sprint=480.0,
+        usable_capacity_hours=400.0,
+        skills=["react-native", "typescript", "ios", "android", "auth"],
+        capability_matrix={"react-native": 0.96, "typescript": 0.94, "ios": 0.90, "ui-ux": 0.92},
+        average_velocity=34.0,
+        current_wip=4,
+        active_sprint_id="sprint_42",
+    )
+    team_fraud = DeliveryTeam(
+        tenant_id=TENANT_ID,
+        id="team_fraud",
+        name="Fraud & Risk Intelligence",
+        key="FRD",
+        description="Machine learning fraud evaluation and transaction screening.",
+        lead_name="James O'Brien",
+        scrum_master="Elena Rostova",
+        members_count=5,
+        capacity_hours_per_sprint=400.0,
+        usable_capacity_hours=360.0,
+        skills=["python", "ml", "flink", "rules-engine"],
+        capability_matrix={"python": 0.95, "ml": 0.92, "flink": 0.88},
+        average_velocity=28.0,
+        current_wip=3,
+    )
+    team_settlement = DeliveryTeam(
+        tenant_id=TENANT_ID,
+        id="team_settlement",
+        name="Settlement & Clearing",
+        key="SET",
+        description="SEPA, SWIFT, and central bank clearing batch processing.",
+        lead_name="Yuki Tanaka",
+        scrum_master="Sarah Chen",
+        members_count=5,
+        capacity_hours_per_sprint=400.0,
+        usable_capacity_hours=350.0,
+        skills=["sepa", "swift", "iso20022", "go"],
+        capability_matrix={"sepa": 0.95, "swift": 0.90, "iso20022": 0.94, "go": 0.92},
+        average_velocity=30.0,
+        current_wip=4,
+    )
+    store.delivery_teams.add(team_pay)
+    store.delivery_teams.add(team_mob)
+    store.delivery_teams.add(team_fraud)
+    store.delivery_teams.add(team_settlement)
+
+    # 4. Sprints
+    sprint42 = Sprint(
+        tenant_id=TENANT_ID,
+        id="sprint_42",
+        name="Sprint 42 (Banking Core)",
+        number=42,
+        team_id="team_payments",
+        team_name="Payments Core",
+        status=SprintStatus.ACTIVE,
+        start_date=(utc_now() - timedelta(days=6)).strftime("%Y-%m-%d"),
+        end_date=(utc_now() + timedelta(days=8)).strftime("%Y-%m-%d"),
+        working_days=10,
+        committed_points=42.0,
+        completed_points=26.0,
+        carried_over_points=3.0,
+        scope_change_points=5.0,
+        capacity_hours=480.0,
+        usable_capacity_hours=420.0,
+        pto_hours_deducted=60.0,
+        goal=SprintGoal(
+            statement="Deliver resilient payment retry engine and SEPA Instant settlement callbacks",
+            confidence_score=0.88,
+            status="ON_TRACK",
+            key_deliverables=["Payment Retry Engine with Exponential Backoff", "Idempotency Key Layer", "SEPA Callback Hooks"],
+        ),
+        health_score=85.0,
+        health_status="HEALTHY",
+        velocity_forecast=40.0,
+        goal_achievement_prob=88.0,
+        story_ids=["story_pay_104", "story_pay_105", "story_pay_106", "story_mob_201", "story_mob_204"],
+    )
+    sprint41 = Sprint(
+        tenant_id=TENANT_ID,
+        id="sprint_41",
+        name="Sprint 41 (Banking Core)",
+        number=41,
+        team_id="team_payments",
+        team_name="Payments Core",
+        status=SprintStatus.COMPLETED,
+        start_date=(utc_now() - timedelta(days=20)).strftime("%Y-%m-%d"),
+        end_date=(utc_now() - timedelta(days=6)).strftime("%Y-%m-%d"),
+        working_days=10,
+        committed_points=38.0,
+        completed_points=39.0,
+        carried_over_points=0.0,
+        scope_change_points=2.0,
+        capacity_hours=480.0,
+        usable_capacity_hours=440.0,
+        pto_hours_deducted=40.0,
+        goal=SprintGoal(
+            statement="Establish Kafka transactional outbox pattern for ledger event publishing",
+            confidence_score=0.96,
+            status="ON_TRACK",
+        ),
+        health_score=94.0,
+        health_status="HEALTHY",
+        velocity_forecast=38.0,
+        goal_achievement_prob=96.0,
+        story_ids=[],
+    )
+    store.sprints.add(sprint42)
+    store.sprints.add(sprint41)
+
+    # 5. Stories
+    story1 = Story(
+        tenant_id=TENANT_ID,
+        id="story_pay_104",
+        key="PAY-104",
+        title="Payment Retry Engine with Exponential Backoff",
+        description="Implement configurable retry mechanism for downstream payment gateway transient timeouts using exponential backoff with randomized jitter.",
+        epic_id="epic_pay",
+        product_id="prod_banking",
+        team_id="team_payments",
+        status=StoryStatus.BLOCKED,
+        points=5.0,
+        priority="P0",
+        definition_of_ready_score=85.0,
+        dor_criteria_met=["Descriptive Story Context", "Verifiable Acceptance Criteria", "Story Points Estimated", "Priority Assigned", "Architecture / Component Tagged"],
+        dor_criteria_missing=[],
+        acceptance_criteria=[
+            AcceptanceCriterion(text="Retry maximum of 3 times with exponential factor 2.0 and ceiling 2000ms", verified=False),
+            AcceptanceCriterion(text="Gateway 4xx client errors must fail fast and not be retried", verified=True),
+            AcceptanceCriterion(text="Emit Prometheus metrics for payment_retry_attempts_total", verified=True),
+        ],
+        missing_metadata=[],
+        risk_score=82.0,
+        risk_level="CRITICAL",
+        risk_explanation="Blocked for 48h: retry mechanism failing integration test on gateway timeout in PR #142. Blocks Checkout Service integration.",
+        stale_days=2,
+        carry_over_count=0,
+        application_id="app_1",
+        service_name="PaymentProcessingService",
+        repository_url="https://github.com/forgeiq-banking/payments-core",
+        component_tag="payments",
+        assignee_id="user_marcus",
+        assignee_name="Marcus Rivera",
+        labels=["backend", "resilience", "critical-path"],
+        linked_dependencies=["dep_pay_vendor", "dep_mob_pay"],
+    )
+    story2 = Story(
+        tenant_id=TENANT_ID,
+        id="story_pay_105",
+        key="PAY-105",
+        title="Idempotency Key Verification Layer",
+        description="Ensure client payment requests enforce Redis-backed distributed locks and idempotency key caching for 24 hours to prevent duplicate debit.",
+        epic_id="epic_pay",
+        product_id="prod_banking",
+        team_id="team_payments",
+        status=StoryStatus.IN_PROGRESS,
+        points=3.0,
+        priority="P0",
+        definition_of_ready_score=95.0,
+        dor_criteria_met=["Descriptive Story Context", "Verifiable Acceptance Criteria", "Story Points Estimated", "Priority Assigned", "Architecture / Component Tagged", "Team / Owner Assigned"],
+        acceptance_criteria=[
+            AcceptanceCriterion(text="Requests with identical Idempotency-Key return cached response without hitting ledger", verified=True),
+            AcceptanceCriterion(text="Concurrent requests return HTTP 409 Conflict", verified=True),
+        ],
+        risk_score=18.0,
+        risk_level="LOW",
+        risk_explanation="Healthy execution, unit and integration tests passing",
+        application_id="app_1",
+        service_name="PaymentProcessingService",
+        assignee_name="Marcus Rivera",
+        labels=["backend", "security"],
+    )
+    story3 = Story(
+        tenant_id=TENANT_ID,
+        id="story_pay_106",
+        key="PAY-106",
+        title="SEPA Instant Settlement Callback Webhooks",
+        description="Receive asynchronous settlement confirmation webhooks from central clearing house and update account transaction state.",
+        epic_id="epic_pay",
+        product_id="prod_banking",
+        team_id="team_payments",
+        status=StoryStatus.READY,
+        points=5.0,
+        priority="P1",
+        definition_of_ready_score=90.0,
+        dor_criteria_met=["Descriptive Story Context", "Verifiable Acceptance Criteria", "Story Points Estimated", "Priority Assigned", "Architecture / Component Tagged"],
+        acceptance_criteria=[
+            AcceptanceCriterion(text="HMAC SHA-256 signature verification on incoming webhook", verified=False),
+            AcceptanceCriterion(text="Publish transaction.settled event to Kafka topic within 50ms", verified=False),
+        ],
+        risk_score=30.0,
+        risk_level="MEDIUM",
+        risk_explanation="Depends on Settlement team ISO message format schema",
+        application_id="app_1",
+        service_name="PaymentProcessingService",
+        component_tag="payments",
+        labels=["backend", "sepa"],
+        linked_dependencies=["dep_pay_settlement"],
+    )
+    story4 = Story(
+        tenant_id=TENANT_ID,
+        id="story_mob_201",
+        key="MOB-201",
+        title="Biometric FaceID / TouchID Authentication Flow",
+        description="Implement native iOS LocalAuthentication and Android BiometricPrompt security handshakes for rapid transaction authorization.",
+        epic_id="epic_auth",
+        product_id="prod_banking",
+        team_id="team_mobile",
+        status=StoryStatus.IN_REVIEW,
+        points=5.0,
+        priority="P0",
+        definition_of_ready_score=95.0,
+        acceptance_criteria=[
+            AcceptanceCriterion(text="Prompt biometric scan when transaction amount exceeds $100", verified=True),
+            AcceptanceCriterion(text="Fallback to PIN entry after 3 failed biometric scans", verified=True),
+        ],
+        risk_score=45.0,
+        risk_level="MEDIUM",
+        risk_explanation="PR #148 review wait time is 38.5 hours (exceeds 24h team SLA baseline)",
+        stale_days=1,
+        assignee_name="Priya Nair",
+        labels=["mobile", "security", "biometrics"],
+    )
+    story5 = Story(
+        tenant_id=TENANT_ID,
+        id="story_mob_204",
+        key="MOB-204",
+        title="Checkout Payment Confirmation Screen & Edge Handlers",
+        description="Display dynamic fees, instant debit confirmation, and retry modals when transient network disconnects occur during checkout.",
+        epic_id="epic_pay",
+        product_id="prod_banking",
+        team_id="team_mobile",
+        status=StoryStatus.BACKLOG,
+        points=8.0,
+        priority="P1",
+        definition_of_ready_score=60.0,
+        dor_criteria_met=["Story Points Estimated", "Priority Assigned"],
+        dor_criteria_missing=["Verifiable Acceptance Criteria", "Architecture / Component Tagged"],
+        acceptance_criteria=[],
+        missing_metadata=["acceptance_criteria", "component_tag"],
+        risk_score=68.0,
+        risk_level="HIGH",
+        risk_explanation="Missing acceptance criteria; 8 points size warrants splitting into UI presentation and error handling states.",
+        split_recommended=True,
+        split_suggestions=[
+            "Split into UI Checkout presentation flow (5 pts)",
+            "Extract transient network failure modal & retry handler (3 pts)",
+        ],
+        labels=["mobile", "ui"],
+        linked_dependencies=["dep_mob_pay"],
+    )
+    store.stories.add(story1)
+    store.stories.add(story2)
+    store.stories.add(story3)
+    store.stories.add(story4)
+    store.stories.add(story5)
+
+    # 6. Dependencies
+    dep1 = DeliveryDependency(
+        tenant_id=TENANT_ID,
+        id="dep_pay_vendor",
+        source_id="story_pay_104",
+        source_title="PAY-104: Payment Retry Engine",
+        source_type="STORY",
+        target_id="ext_payment_gateway",
+        target_title="External Payment Gateway API (Stripe / Adyen)",
+        target_type="EXTERNAL",
+        dependency_type=DependencyType.BLOCKS,
+        critical_path=True,
+        aging_days=2,
+        risk_level="CRITICAL",
+        blast_radius_score=0.85,
+        status="BLOCKED",
+        impact_description="Gateway timeout handling is causing integration test assertions to fail in PR #142",
+    )
+    dep2 = DeliveryDependency(
+        tenant_id=TENANT_ID,
+        id="dep_mob_pay",
+        source_id="story_mob_204",
+        source_title="MOB-204: Checkout Confirmation Screen",
+        source_type="STORY",
+        target_id="story_pay_104",
+        target_title="PAY-104: Payment Retry Engine",
+        target_type="STORY",
+        dependency_type=DependencyType.DEPENDS_ON,
+        critical_path=True,
+        aging_days=2,
+        risk_level="HIGH",
+        blast_radius_score=0.72,
+        status="BLOCKED",
+        impact_description="Mobile team cannot finalize integration tests until Payment Retry API contract is verified",
+    )
+    dep3 = DeliveryDependency(
+        tenant_id=TENANT_ID,
+        id="dep_pay_settlement",
+        source_id="story_pay_106",
+        source_title="PAY-106: SEPA Instant Settlement Callback",
+        source_type="STORY",
+        target_id="team_settlement",
+        target_title="Settlement & Clearing Team",
+        target_type="TEAM",
+        dependency_type=DependencyType.DEPENDS_ON,
+        critical_path=False,
+        aging_days=1,
+        risk_level="MEDIUM",
+        blast_radius_score=0.40,
+        status="ACTIVE",
+        impact_description="Awaiting final ISO 20022 schema definitions from Settlement team",
+    )
+    dep4 = DeliveryDependency(
+        tenant_id=TENANT_ID,
+        id="dep_team_b",
+        source_id="team_mobile",
+        source_title="Mobile Banking Team",
+        source_type="TEAM",
+        target_id="team_payments",
+        target_title="Payments Core Team",
+        target_type="TEAM",
+        dependency_type=DependencyType.DEPENDS_ON,
+        critical_path=True,
+        aging_days=3,
+        risk_level="HIGH",
+        blast_radius_score=0.80,
+        status="ACTIVE",
+        impact_description="Cross-team API integration for Mobile checkout and transaction history",
+    )
+    store.delivery_dependencies.add(dep1)
+    store.delivery_dependencies.add(dep2)
+    store.delivery_dependencies.add(dep3)
+    store.delivery_dependencies.add(dep4)
+
+    # 7. Delivery Risks
+    risk1 = DeliveryRisk(
+        tenant_id=TENANT_ID,
+        id="risk_pay_timeout",
+        category=RiskCategory.DEPENDENCY,
+        severity="CRITICAL",
+        title="Payment Retry Engine Failing Integration Tests (PAY-104)",
+        description="Gateway timeout is triggering assertion failures in test_retry_policy.py:L84, blocking PR #142 and downstream Mobile checkout.",
+        probability=0.92,
+        impact=0.90,
+        urgency="IMMEDIATE",
+        affected_story_ids=["story_pay_104", "story_mob_204"],
+        affected_team_ids=["team_payments", "team_mobile"],
+        root_cause="Exponential backoff ceiling was configured to 5000ms, which exceeds the test harness mock gateway timeout threshold of 2000ms.",
+        remediation_suggested="Launch ForgeIQ Remediation Harness to calibrate retry ceiling to 2000ms with jitter factor 0.2.",
+        engineering_link={
+            "application_id": "app_1",
+            "repository": "payments-core",
+            "service": "PaymentProcessingService",
+            "open_pr": "PR #142",
+            "failing_test": "test_idempotent_retry_on_gateway_timeout",
+        },
+        remediation_harness_id="hrn_test_remedy",
+        status="ACTIVE",
+    )
+    risk2 = DeliveryRisk(
+        tenant_id=TENANT_ID,
+        id="risk_pr_sla",
+        category=RiskCategory.REVIEW_BOTTLENECK,
+        severity="HIGH",
+        title="Biometric Auth PR #148 Review SLA Breached (38.5 Hours)",
+        description="PR #148 has been awaiting secondary review for 38.5 hours against team 24-hour SLA baseline.",
+        probability=0.75,
+        impact=0.60,
+        urgency="THIS_SPRINT",
+        affected_story_ids=["story_mob_201"],
+        affected_team_ids=["team_mobile"],
+        root_cause="Primary reviewer Priya Nair on leave; secondary reviewer unassigned.",
+        remediation_suggested="Auto-assign and notify secondary reviewer Priya Nair via Slack.",
+        status="ACTIVE",
+    )
+    risk3 = DeliveryRisk(
+        tenant_id=TENANT_ID,
+        id="risk_pto_cap",
+        category=RiskCategory.CAPACITY,
+        severity="MEDIUM",
+        title="Payments Core Sprint Capacity Reduced by 60 PTO Hours",
+        description="Scheduled leave for 2 senior backend engineers reduces net capacity from 480h to 420h.",
+        probability=1.0,
+        impact=0.50,
+        urgency="THIS_SPRINT",
+        affected_team_ids=["team_payments"],
+        root_cause="Pre-approved annual leave coinciding with Sprint 42.",
+        remediation_suggested="Commitment already dampened to 42 pts; monitor burndown daily.",
+        status="ACTIVE",
+    )
+    store.delivery_risks.add(risk1)
+    store.delivery_risks.add(risk2)
+    store.delivery_risks.add(risk3)
+
+    # 8. Delivery Recommendations & Actions
+    rec1 = DeliveryRecommendation(
+        tenant_id=TENANT_ID,
+        id="rec_1",
+        title="Launch ForgeIQ Remediation Harness for PAY-104",
+        recommendation="Trigger the Testing & Remediation Harness to update retry ceiling in PaymentProcessingService to 2000ms.",
+        rationale="Resolves the integration test timeout, unblocks PR #142, and recovers Sprint Goal probability to 95%.",
+        confidence=0.96,
+        automation_level=AutomationLevel.L3_APPROVE_AND_EXECUTE,
+        suggested_action_type="TRIGGER_REMEDIATION_HARNESS",
+        target_entity_id="story_pay_104",
+    )
+    rec2 = DeliveryRecommendation(
+        tenant_id=TENANT_ID,
+        id="rec_2",
+        title="Nudge Secondary Reviewer for PR #148",
+        recommendation="Send automated Slack notification to unblock Biometric Auth PR #148.",
+        rationale="Reduces review cycle time back within the 24h SLA target.",
+        confidence=0.92,
+        automation_level=AutomationLevel.L4_POLICY_AUTOMATION,
+        suggested_action_type="SEND_REVIEW_NUDGE",
+        target_entity_id="story_mob_201",
+    )
+    store.delivery_recommendations.add(rec1)
+    store.delivery_recommendations.add(rec2)
+
+    act1 = DeliveryAction(
+        tenant_id=TENANT_ID,
+        id="act_pr_nudge",
+        title="Send SLA Reminder for PR #148",
+        action_type="SEND_REVIEW_NUDGE",
+        description="Notify mobile engineers to prioritize reviewing PR #148 before today's standup.",
+        status=ActionStatus.PENDING_APPROVAL,
+        automation_level=AutomationLevel.L3_APPROVE_AND_EXECUTE,
+        initiated_by="AI Scrum Master",
+        payload={"pr_number": 148, "target_channel": "#mobile-eng-reviews", "hours_waiting": 38.5},
+    )
+    store.delivery_actions.add(act1)
+
+    # 9. Delivery Forecast
+    forecast = DeliveryForecast(
+        tenant_id=TENANT_ID,
+        id="fc_banking_2_4",
+        target_release="Release 2.4 - Banking Core Modernization",
+        epic_id="epic_pay",
+        target_date=(utc_now() + timedelta(days=35)).strftime("%Y-%m-%d"),
+        optimistic_date=(utc_now() + timedelta(days=27)).strftime("%Y-%m-%d"),
+        expected_date=(utc_now() + timedelta(days=31)).strftime("%Y-%m-%d"),
+        conservative_date=(utc_now() + timedelta(days=45)).strftime("%Y-%m-%d"),
+        confidence_score=0.82,
+        scope_buffer_points=12.0,
+        monte_carlo_runs=1000,
+    )
+    store.delivery_forecasts.add(forecast)
+
+    # 10. Delivery State
+    del_state = DeliveryState(
+        tenant_id=TENANT_ID,
+        id="del_state_main",
+        active_sprint_id="sprint_42",
+        team_id="team_payments",
+        health_index=85.0,
+        goal_confidence=88.0,
+        velocity_trend="STABLE",
+        cycle_time_days=3.4,
+        lead_time_days=8.2,
+        blocked_time_hours=14.5,
+        wip_items=5,
+        total_active_risks=3,
+        critical_risks=1,
+        open_dependencies=4,
+        engineering_state_link_id="state_1",
+    )
+    store.delivery_states.add(del_state)

@@ -49,6 +49,19 @@ import PeerEngineeringWorkspace from './pages/PeerEngineeringWorkspace'
 import ApprovalsPage from './pages/ApprovalsPage'
 import IncidentsPage from './pages/IncidentsPage'
 import IncidentDetail from './pages/IncidentDetail'
+import DeliveryCommandCenter from './pages/delivery/DeliveryCommandCenter'
+import SprintHealthPage from './pages/delivery/SprintHealthPage'
+import SprintPlannerPage from './pages/delivery/SprintPlannerPage'
+import StoryIntelligencePage from './pages/delivery/StoryIntelligencePage'
+import TeamAllocationPage from './pages/delivery/TeamAllocationPage'
+import VelocityIntelligencePage from './pages/delivery/VelocityIntelligencePage'
+import DeliveryDependencyGraphPage from './pages/delivery/DeliveryDependencyGraphPage'
+import RiskCenterPage from './pages/delivery/RiskCenterPage'
+import ReleaseForecastPage from './pages/delivery/ReleaseForecastPage'
+import DailyScrumPage from './pages/delivery/DailyScrumPage'
+import DeliveryCopilotPage from './pages/delivery/DeliveryCopilotPage'
+import DeliveryStatePage from './pages/delivery/DeliveryStatePage'
+import StoryWeaverHarnessPage from './pages/delivery/StoryWeaverHarnessPage'
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -118,6 +131,20 @@ export default function App() {
         <Route path="/pipeline-templates" element={<PipelineTemplatesPage />} />
         <Route path="/executions" element={<ExecutionsPage />} />
         <Route path="/executions/:id" element={<ExecutionDetail />} />
+        {/* Delivery Intelligence (AI Scrum Master) */}
+        <Route path="/delivery-intelligence" element={<DeliveryCommandCenter />} />
+        <Route path="/delivery-intelligence/story-weaver" element={<StoryWeaverHarnessPage />} />
+        <Route path="/delivery-intelligence/sprint-health" element={<SprintHealthPage />} />
+        <Route path="/delivery-intelligence/sprint-planner" element={<SprintPlannerPage />} />
+        <Route path="/delivery-intelligence/story-intelligence" element={<StoryIntelligencePage />} />
+        <Route path="/delivery-intelligence/team-allocation" element={<TeamAllocationPage />} />
+        <Route path="/delivery-intelligence/velocity" element={<VelocityIntelligencePage />} />
+        <Route path="/delivery-intelligence/dependency-graph" element={<DeliveryDependencyGraphPage />} />
+        <Route path="/delivery-intelligence/risk-center" element={<RiskCenterPage />} />
+        <Route path="/delivery-intelligence/forecast" element={<ReleaseForecastPage />} />
+        <Route path="/delivery-intelligence/daily-scrum" element={<DailyScrumPage />} />
+        <Route path="/delivery-intelligence/copilot" element={<DeliveryCopilotPage />} />
+        <Route path="/delivery-intelligence/state" element={<DeliveryStatePage />} />
         <Route path="/evidence" element={<EvidencePage />} />
         <Route path="/engineering-state" element={<EngineeringStatePage />} />
         <Route path="/policies" element={<PoliciesPage />} />

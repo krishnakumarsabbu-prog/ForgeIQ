@@ -1,223 +1,174 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  GitBranch, Plus, Layers, FileCheck, Boxes, ArrowRight,
-  CheckCircle2, Shield, Package, Rocket, Server, Eye,
-} from 'lucide-react'
-import {
-  usePipelineTemplates, useInstantiatePipelineTemplate,
-} from '../hooks/useQueries'
-import { useApplications } from '../hooks/useQueries'
+import { usePipelineTemplates, useCreatePipelineFromTemplate } from '../hooks/useQueries'
 import { PageHeader, StatusBadge, LoadingSpinner, EmptyState } from '../components/ui/PageHeader'
-import { Spinner } from '../components/ui/StatusBadge'
+import { StatCard, EnterpriseCard, SectionHeader } from '../components/ui/EnterpriseHelpers'
 import type { PipelineTemplate } from '../types'
+import {
+  LayoutTemplate, GitBranch, Plus, Star, Zap, Shield, Package,
+  Search, Filter, X, ChevronRight, CheckCircle2, ArrowUpRight,
+} from 'lucide-react'
 
-const STAGE_ICONS: Record<string, typeof Layers> = {
-  harness: Layers,
-  development: Layers,
-  testing: CheckCircle2,
-  security: Shield,
-  build: Package,
-  release: Rocket,
-  deployment: Server,
-  verification: Eye,
-  approval: FileCheck,
-  condition: GitBranch,
-  parallel: Boxes,
-  environment: Server,
-  artifact: Package,
+const categoryStyle: Record<string, { bg: string; color: string; border: string; icon: any }> = {
+  development:  { bg: 'rgba(14,165,233,0.1)',  color: '#0284c7', border: 'rgba(14,165,233,0.25)',  icon: GitBranch },
+  testing:      { bg: 'rgba(16,185,129,0.1)',  color: '#059669', border: 'rgba(16,185,129,0.25)',  icon: CheckCircle2 },
+  security:     { bg: 'rgba(244,63,94,0.1)',   color: '#e11d48', border: 'rgba(244,63,94,0.25)',   icon: Shield },
+  build:        { bg: 'rgba(245,158,11,0.1)',  color: '#b45309', border: 'rgba(245,158,11,0.25)',  icon: Package },
+  release:      { bg: 'rgba(245,158,11,0.1)',  color: '#b45309', border: 'rgba(245,158,11,0.25)',  icon: Zap },
+  deployment:   { bg: 'rgba(124,58,237,0.1)',  color: '#7c3aed', border: 'rgba(124,58,237,0.25)', icon: Zap },
+  full_sdlc:    { bg: 'rgba(14,165,233,0.1)',  color: '#0284c7', border: 'rgba(14,165,233,0.25)',  icon: Star },
 }
-
-const CATEGORY_COLORS: Record<string, string> = {
-  frontend: 'bg-blue-50 text-blue-700 border border-blue-200',
-  backend: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  release: 'bg-purple-50 text-purple-700 border border-purple-200',
-  security: 'bg-red-50 text-red-700 border border-red-200',
-  deployment: 'bg-amber-50 text-amber-700 border border-amber-200',
-  full: 'bg-forgeiq-50 text-forgeiq-700 border border-forgeiq-200',
-  custom: 'bg-slate-50 text-slate-600 border border-slate-200',
-}
+const DEFAULT_CAT = { bg: 'rgba(100,116,139,0.1)', color: '#475569', border: 'rgba(100,116,139,0.2)', icon: LayoutTemplate }
 
 export default function PipelineTemplatesPage() {
   const navigate = useNavigate()
   const { data: templates, isLoading } = usePipelineTemplates()
-  const { data: applications } = useApplications()
-  const instantiate = useInstantiatePipelineTemplate()
+  const createFromTemplate = useCreatePipelineFromTemplate()
+  const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
 
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [displayName, setDisplayName] = useState('')
-  const [appId, setAppId] = useState('')
-  const [instantiating, setInstantiating] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const categories = useMemo(() => {
+    if (!templates) return []
+    return [...new Set(templates.map(t => t.category).filter(Boolean))]
+  }, [templates])
 
-  const selected = (templates || []).find((t) => t.id === selectedId)
+  const filtered = useMemo(() => {
+    if (!templates) return []
+    return templates.filter(t => {
+      const matchSearch = !search ||
+        t.display_name?.toLowerCase().includes(search.toLowerCase()) ||
+        t.description?.toLowerCase().includes(search.toLowerCase())
+      const matchCat = !categoryFilter || t.category === categoryFilter
+      return matchSearch && matchCat
+    })
+  }, [templates, search, categoryFilter])
 
-  const handleInstantiate = async () => {
-    if (!selected || !displayName) {
-      setMsg({ type: 'error', text: 'Display name is required' })
-      return
-    }
-    setInstantiating(true)
-    setMsg(null)
-    try {
-      const result = await instantiate.mutateAsync({
-        id: selected.id,
-        body: { display_name: displayName, application_id: appId || undefined },
-      })
-      navigate(`/pipelines/${result.id}`)
-    } catch (e) {
-      setMsg({ type: 'error', text: `Failed: ${(e as Error).message}` })
-    } finally {
-      setInstantiating(false)
-    }
+  const handleUseTemplate = (template: PipelineTemplate, e: React.MouseEvent) => {
+    e.stopPropagation()
+    createFromTemplate.mutate(
+      { template_id: template.id, body: { display_name: `${template.display_name} Pipeline` } },
+      { onSuccess: (pipeline: any) => navigate(`/pipelines/${pipeline?.id ?? ''}`) }
+    )
   }
 
   return (
-    <div>
+    <>
       <PageHeader
         title="Pipeline Templates"
-        description="Reusable, versioned pipeline templates for common engineering lifecycles"
+        description="Battle-tested pipeline blueprints for full SDLC, security-first, and specialized engineering workflows."
+        icon={<LayoutTemplate size={18} />}
+        badge="Templates"
+        badgeVariant="violet"
         actions={
-          <button
-            onClick={() => navigate('/pipeline-builder')}
-            className="inline-flex items-center gap-1.5 rounded-md bg-forgeiq-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-forgeiq-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" />
-            New Pipeline
+          <button onClick={() => navigate('/pipeline-builder')} className="fi-btn-primary">
+            <Plus size={13} /> Build Custom Pipeline
           </button>
         }
       />
 
-      <div className="p-6">
+      <div className="p-6 space-y-4 max-w-[1800px] mx-auto">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard label="Total Templates"  value={templates?.length ?? 0}  sub="Available"   icon={LayoutTemplate} gradient={['#7c3aed','#4f46e5']} />
+          <StatCard label="Full SDLC"        value={templates?.filter(t=>t.category==='full_sdlc').length ?? 0}   sub="End-to-end" icon={Star}          gradient={['#00adef','#0a68f4']} />
+          <StatCard label="Security First"   value={templates?.filter(t=>t.category==='security').length ?? 0}    sub="Hardened"  icon={Shield}        gradient={['#f43f5e','#e11d48']} />
+          <StatCard label="Deploy Templates" value={templates?.filter(t=>t.category==='deployment').length ?? 0}  sub="CD focused" icon={Zap}           gradient={['#10b981','#0891b2']} />
+        </div>
+
+        {/* Filter Bar */}
+        <div className="rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap" style={{ background: '#fff', border: '1px solid rgba(226,232,240,0.8)' }}>
+          <Filter size={14} className="text-slate-400" />
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates..." className="fi-input pl-9" />
+            {search && <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"><X size={13} /></button>}
+          </div>
+          <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="fi-input w-auto">
+            <option value="">All Categories</option>
+            {categories.map(c => <option key={c} value={c}>{c.replace('_', ' ')}</option>)}
+          </select>
+          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full ml-auto" style={{ background: 'rgba(124,58,237,0.1)', color: '#7c3aed', border: '1px solid rgba(124,58,237,0.2)' }}>
+            {filtered.length} templates
+          </span>
+        </div>
+
+        {/* Template Grid */}
         {isLoading ? (
-          <LoadingSpinner />
-        ) : !templates?.length ? (
-          <div className="fi-card">
-            <EmptyState message="No pipeline templates configured" />
+          <LoadingSpinner message="Loading template library..." />
+        ) : !filtered.length ? (
+          <div className="rounded-2xl" style={{ background: '#fff', border: '1px solid rgba(226,232,240,0.8)' }}>
+            <EmptyState message="No templates found" description="Try clearing your filters or build a custom pipeline." />
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Template list */}
-            <div className="space-y-3">
-              {templates.map((t: PipelineTemplate) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map((template: PipelineTemplate) => {
+              const cs = categoryStyle[template.category?.toLowerCase() ?? ''] ?? DEFAULT_CAT
+              const CatIcon = cs.icon
+              return (
                 <div
-                  key={t.id}
-                  onClick={() => {
-                    setSelectedId(t.id)
-                    setDisplayName(`${t.display_name} Instance`)
-                    setMsg(null)
+                  key={template.id}
+                  className="rounded-2xl p-5 cursor-pointer transition-all duration-200 group relative overflow-hidden"
+                  style={{
+                    background: '#fff',
+                    border: '1px solid rgba(226,232,240,0.8)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                   }}
-                  className={`fi-card p-4 cursor-pointer transition-all ${
-                    selectedId === t.id ? 'ring-2 ring-forgeiq-400 border-forgeiq-300' : 'hover:border-slate-300'
-                  }`}
+                  onClick={() => navigate(`/pipeline-templates/${template.id}`)}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 8px 30px -4px rgba(0,14,35,0.12)'
+                    e.currentTarget.style.borderColor = cs.border
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.transform = 'none'
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'
+                    e.currentTarget.style.borderColor = 'rgba(226,232,240,0.8)'
+                  }}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      <GitBranch className="h-4 w-4 text-forgeiq-600" />
-                      <span className="text-sm font-semibold text-slate-900">{t.display_name}</span>
-                    </div>
-                    <span className={`fi-badge text-xs ${CATEGORY_COLORS[t.category] || CATEGORY_COLORS.custom}`}>
-                      {t.category}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-xs text-slate-500 line-clamp-2">{t.description}</p>
-                  <div className="mt-3 flex items-center gap-2">
-                    <span className="text-xs text-slate-400">{t.stage_definitions.length} stages</span>
-                    <span className="text-slate-300">·</span>
-                    <span className="text-xs text-slate-400">v{t.current_version}</span>
-                    {t.published && (
-                      <>
-                        <span className="text-slate-300">·</span>
-                        <StatusBadge status="published" />
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                  {/* Top accent */}
+                  <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-2xl" style={{ background: `linear-gradient(90deg, ${cs.color}, ${cs.color}80)` }} />
 
-            {/* Template detail / instantiate */}
-            <div className="fi-card p-5 sticky top-6 self-start">
-              {!selected ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <Layers className="h-10 w-10 text-slate-300 mb-3" />
-                  <p className="text-sm text-slate-500">Select a template to view details and instantiate</p>
-                </div>
-              ) : (
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <GitBranch className="h-5 w-5 text-forgeiq-600" />
-                    <h3 className="text-sm font-semibold text-slate-900">{selected.display_name}</h3>
-                  </div>
-                  <p className="text-xs text-slate-500 mb-4">{selected.description}</p>
-
-                  {/* Stage flow preview */}
-                  <div className="mb-4">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Stage Flow</h4>
-                    <div className="space-y-1.5">
-                      {selected.stage_definitions.map((sd: Record<string, unknown>, i: number) => {
-                        const stageType = (sd.stage_type as string) || 'harness'
-                        const Icon = STAGE_ICONS[stageType] || Layers
-                        const name = (sd.name as string) || `Stage ${i + 1}`
-                        return (
-                          <div key={i} className="flex items-center gap-2">
-                            <div className="flex-shrink-0 w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-500">
-                              {i + 1}
-                            </div>
-                            <Icon className="h-3.5 w-3.5 text-slate-400" />
-                            <span className="text-xs font-medium text-slate-700">{name}</span>
-                            <span className="text-xs text-slate-400">· {stageType}</span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Instantiate form */}
-                  <div className="border-t border-slate-200 pt-4 space-y-3">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Instantiate</h4>
-                    {msg && (
-                      <div className={`text-xs font-medium ${msg.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {msg.text}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: cs.bg, border: `1px solid ${cs.border}` }}>
+                        <CatIcon size={16} style={{ color: cs.color }} />
                       </div>
-                    )}
-                    <div>
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Pipeline Name</label>
-                      <input
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        placeholder="My Pipeline"
-                        className="mt-1 w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm text-slate-900 focus:border-forgeiq-500 focus:outline-none focus:ring-1 focus:ring-forgeiq-500"
-                      />
+                      <div>
+                        <h3 className="text-sm font-black text-slate-900 leading-tight">{template.display_name}</h3>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold capitalize" style={{ background: cs.bg, color: cs.color, border: `1px solid ${cs.border}` }}>
+                          {template.category?.replace('_', ' ')}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Application</label>
-                      <select
-                        value={appId}
-                        onChange={(e) => setAppId(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm text-slate-900 focus:border-forgeiq-500 focus:outline-none focus:ring-1 focus:ring-forgeiq-500"
-                      >
-                        <option value="">No application</option>
-                        {(applications || []).map((app) => (
-                          <option key={app.id} value={app.id}>{app.display_name}</option>
-                        ))}
-                      </select>
+                    <ArrowUpRight size={14} className="text-slate-200 group-hover:text-sky-500 transition-colors shrink-0 mt-1" />
+                  </div>
+
+                  <p className="text-xs text-slate-500 leading-relaxed mb-4 line-clamp-2">{template.description}</p>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-lg" style={{ background: 'rgba(100,116,139,0.08)', color: '#64748b', border: '1px solid rgba(100,116,139,0.15)' }}>
+                        {template.stages?.length ?? template.stage_definitions?.length ?? 0} stages
+                      </span>
+                      {(template.built_in || template.category === 'standard') && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(245,158,11,0.1)', color: '#b45309', border: '1px solid rgba(245,158,11,0.2)' }}>
+                          ⭐ Official
+                        </span>
+                      )}
                     </div>
                     <button
-                      onClick={handleInstantiate}
-                      disabled={instantiating || !displayName}
-                      className="w-full inline-flex items-center justify-center gap-1.5 rounded-md bg-forgeiq-600 px-3 py-2 text-sm font-medium text-white hover:bg-forgeiq-700 transition-colors disabled:opacity-50"
+                      onClick={e => handleUseTemplate(template, e)}
+                      className="fi-btn-primary fi-btn-sm"
+                      disabled={createFromTemplate.isPending}
                     >
-                      {instantiating ? <Spinner /> : <ArrowRight className="h-4 w-4" />}
-                      Create Pipeline from Template
+                      {createFromTemplate.isPending ? 'Creating…' : 'Use Template'}
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
+              )
+            })}
           </div>
         )}
       </div>
-    </div>
+    </>
   )
 }
